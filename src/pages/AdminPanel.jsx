@@ -792,21 +792,34 @@ function ReviewQueueTab() {
 
                 {/* AI Scores */}
                 {Object.keys(scores).length > 0 && (
-                  <div style={{ marginTop: 12, padding: "12px 16px", background: "var(--cream)", borderRadius: 10, fontSize: 12 }}>
-                    <div style={{ fontWeight: 700, color: "var(--navy)", marginBottom: 8 }}>AI Moderation Scores</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                      {Object.entries(scores).map(([k, v]) => (
-                        <div key={k} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ color: "var(--text-light)", textTransform: "capitalize" }}>{k.replace("_", " ")}:</span>
-                          <span style={{ fontWeight: 700, color: v >= 70 ? "var(--sage)" : v >= 50 ? "#C8851A" : "#D96B4A" }}>{v}</span>
-                        </div>
-                      ))}
+                  <div style={{ marginTop: 12, padding: "14px 16px", background: "#F1F5F9", borderRadius: 10, fontSize: 12 }}>
+                    <div style={{ fontWeight: 700, color: "#0B1D35", marginBottom: 10 }}>AI Moderation Scores</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {Object.entries(scores).map(([k, v]) => {
+                        const barColor = v >= 70 ? "#4A7C6F" : v >= 50 ? "#E8A020" : "#D96B4A";
+                        return (
+                          <div key={k}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                              <span style={{ color: "#6b7280", textTransform: "capitalize", fontWeight: 500 }}>{k.replace(/_/g, " ")}</span>
+                              <span style={{ fontWeight: 700, color: barColor }}>{v}</span>
+                            </div>
+                            <div style={{ height: 6, background: "rgba(11,29,53,0.06)", borderRadius: 3, overflow: "hidden" }}>
+                              <div style={{ height: "100%", width: `${Math.min(v, 100)}%`, background: barColor, borderRadius: 3, transition: "width 0.4s ease" }} />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
+                    {ai.overall_pass !== undefined && (
+                      <div style={{ marginTop: 10, padding: "6px 10px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, background: ai.overall_pass ? "rgba(74,124,111,0.1)" : "rgba(217,107,74,0.1)", color: ai.overall_pass ? "#4A7C6F" : "#D96B4A" }}>
+                        {ai.overall_pass ? "✓ Passed" : "✗ Flagged"}
+                      </div>
+                    )}
                     {flags.length > 0 && (
-                      <div style={{ marginTop: 8, color: "#C8851A" }}>Flags: {flags.join(", ")}</div>
+                      <div style={{ marginTop: 8, color: "#C8851A", fontSize: 12 }}>Flags: {flags.join(", ")}</div>
                     )}
                     {ai.review_reason && (
-                      <div style={{ marginTop: 4, color: "var(--text-mid)", fontStyle: "italic" }}>{ai.review_reason}</div>
+                      <div style={{ marginTop: 4, color: "#6b7280", fontStyle: "italic", fontSize: 12 }}>{ai.review_reason}</div>
                     )}
                   </div>
                 )}
