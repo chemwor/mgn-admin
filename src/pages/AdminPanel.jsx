@@ -868,9 +868,10 @@ function ReviewQueueTab() {
   };
 
   const rejectPhoto = async (id) => {
-    if (!window.confirm("Reject this photo? The need will be reopened for a new donor.")) return;
+    const adminNote = window.prompt("Add a note for the donor (optional — AI analysis reason will be included automatically):");
+    if (adminNote === null) return; // cancelled
     setActionLoading(id + "reject-photo");
-    try { await api.post(`/api/needs/${id}/reject-photo`, {}); load(); } catch {}
+    try { await api.post(`/api/needs/${id}/reject-photo`, { reason: adminNote || "" }); load(); } catch {}
     setActionLoading("");
   };
 
