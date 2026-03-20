@@ -2,6 +2,18 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+:root {
+  --navy: #0B1D35;
+  --amber: #E8A020;
+  --sage: #4A7C6F;
+  --coral: #D96B4A;
+  --cream: #FAF8F3;
+  --cream-dark: #F0EDE6;
+  --text-mid: #6B7280;
+  --text-light: #9CA3AF;
+  --font-heading: 'Fraunces', serif;
+}
+
 body {
   font-family: 'Plus Jakarta Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -34,6 +46,17 @@ body {
   text-decoration: none; transition: opacity 0.15s;
 }
 .btn-primary:hover { opacity: 0.9; }
+
+.btn-outline {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 24px; border-radius: 8px;
+  background: transparent; color: #0B1D35;
+  border: 1.5px solid rgba(11,29,53,0.15);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  text-decoration: none; transition: opacity 0.15s;
+}
+.btn-outline:hover { opacity: 0.8; }
 
 /* Form inputs */
 input:focus, select:focus, textarea:focus {
