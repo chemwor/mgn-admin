@@ -192,17 +192,99 @@ function NeedsTab() {
                               <Detail label="Urgency" value={n.urgency} />
                               {n.is_flagged && <Detail label="Flag" value={n.flag_reason || "Flagged"} />}
                               <Detail label="Matched At" value={fmtDate(n.matched_at)} />
-                              <Detail label="Fulfilled At" value={fmtDate(n.fulfilled_at)} />
+                              <Detail label="Ready for Pickup" value={fmtDate(n.ready_for_pickup_at)} />
+                              <Detail label="Picked Up" value={fmtDate(n.picked_up_at)} />
+                              <Detail label="Delivered" value={fmtDate(n.delivered_at || n.fulfilled_at)} />
+                              {n.delivery_volunteer_name && <Detail label="Delivery Vol." value={`${n.delivery_volunteer_name} (${n.delivery_volunteer_email || ""})`} />}
                             </div>
+
+                            {/* Donor Photo + AI Analysis */}
+                            {n.donor_photo_url && (
+                              <div style={{ marginTop: 16, padding: 16, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                                <div style={{ fontWeight: 700, fontSize: 13, color: "#0B1D35", marginBottom: 10 }}>Donor Photo</div>
+                                <img src={n.donor_photo_url} alt="Donor item" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, border: "1px solid #e2e8f0", marginBottom: 12 }} />
+
+                                {/* AI Photo Analysis Scores */}
+                                {n.photo_analysis && n.photo_analysis.scores && (
+                                  <div style={{ marginTop: 8 }}>
+                                    <div style={{ fontWeight: 700, fontSize: 12, color: "#0B1D35", marginBottom: 8 }}>AI Photo Analysis</div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                      {Object.entries(n.photo_analysis.scores).map(([k, v]) => {
+                                        const c = v >= 70 ? "#4A7C6F" : v >= 50 ? "#E8A020" : "#D96B4A";
+                                        return (
+                                          <div key={k}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                                              <span style={{ fontSize: 12, color: "#6b7280", textTransform: "capitalize" }}>{k.replace(/_/g, " ")}</span>
+                                              <span style={{ fontSize: 12, fontWeight: 700, color: c }}>{v}</span>
+                                            </div>
+                                            <div style={{ height: 5, background: "#e2e8f0", borderRadius: 3, overflow: "hidden" }}>
+                                              <div style={{ height: "100%", width: `${Math.min(v, 100)}%`, background: c, borderRadius: 3 }} />
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    {n.photo_analysis.recommendation && (
+                                      <div style={{
+                                        marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5,
+                                        padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                                        background: n.photo_analysis.recommendation === "auto_approve" ? "rgba(74,124,111,0.1)" : n.photo_analysis.recommendation === "reject" ? "rgba(217,107,74,0.1)" : "rgba(232,160,32,0.1)",
+                                        color: n.photo_analysis.recommendation === "auto_approve" ? "#4A7C6F" : n.photo_analysis.recommendation === "reject" ? "#D96B4A" : "#C8851A",
+                                      }}>
+                                        {n.photo_analysis.recommendation === "auto_approve" ? "✓ Auto-Approved" : n.photo_analysis.recommendation === "reject" ? "✗ Reject Recommended" : "⚠ Manual Review"}
+                                      </div>
+                                    )}
+                                    {n.photo_analysis.summary && (
+                                      <p style={{ fontSize: 12, color: "#6b7280", fontStyle: "italic", marginTop: 6, lineHeight: 1.5 }}>{n.photo_analysis.summary}</p>
+                                    )}
+                                    {n.photo_analysis.flags && n.photo_analysis.flags.length > 0 && (
+                                      <div style={{ marginTop: 6, fontSize: 12, color: "#92400E" }}>
+                                        Flags: {n.photo_analysis.flags.join(", ")}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Approve Photo button — only for matched status */}
+                                {n.status === "matched" && (
+                                  <button
+                                    className="btn-primary"
+                                    style={{ ...st.actionBtn, background: "#4A7C6F", marginTop: 12 }}
+                                    disabled={!!actionLoading}
+                                    onClick={async () => {
+                                      setActionLoading(n.id + "approve-photo");
+                                      try {
+                                        await api.post(`/api/needs/${n.id}/approve-photo`, {});
+                                        load();
+                                      } catch { /* silent */ }
+                                      setActionLoading("");
+                                    }}
+                                  >
+                                    {actionLoading === n.id + "approve-photo" ? "Approving..." : "Approve Photo & Send to Delivery"}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+
                             <div style={st.expandActions}>
-                              {n.status !== "matched" && n.status !== "fulfilled" && (
+                              {n.status === "open" && (
                                 <button className="btn-amber" style={st.actionBtn} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "matched")}>
                                   {actionLoading === n.id + "matched" ? "..." : "Mark Matched"}
                                 </button>
                               )}
-                              {n.status !== "fulfilled" && (
-                                <button className="btn-primary" style={{ ...st.actionBtn, background: "var(--sage)" }} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "fulfilled")}>
-                                  {actionLoading === n.id + "fulfilled" ? "..." : "Mark Fulfilled"}
+                              {n.status === "ready_for_pickup" && (
+                                <button className="btn-amber" style={st.actionBtn} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "picked_up")}>
+                                  {actionLoading === n.id + "picked_up" ? "..." : "Mark Picked Up"}
+                                </button>
+                              )}
+                              {n.status === "picked_up" && (
+                                <button className="btn-primary" style={{ ...st.actionBtn, background: "var(--sage)" }} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "delivered")}>
+                                  {actionLoading === n.id + "delivered" ? "..." : "Mark Delivered"}
+                                </button>
+                              )}
+                              {n.status !== "delivered" && n.status !== "fulfilled" && (
+                                <button className="btn-primary" style={{ ...st.actionBtn, background: "var(--sage)" }} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "delivered")}>
+                                  {actionLoading === n.id + "delivered" ? "..." : "Mark Delivered"}
                                 </button>
                               )}
                               {n.status === "open" && (
