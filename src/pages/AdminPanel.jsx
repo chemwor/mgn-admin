@@ -267,10 +267,11 @@ function NeedsTab() {
                                       style={{ ...st.actionBtn, background: "transparent", color: "#D96B4A", border: "1.5px solid #D96B4A", borderRadius: 8 }}
                                       disabled={!!actionLoading}
                                       onClick={async () => {
-                                        if (!window.confirm("Reject this photo? The need will be reopened for a new donor.")) return;
+                                        const adminNote = window.prompt("Add a note for the donor (optional — AI analysis reason will be included automatically):");
+                                        if (adminNote === null) return;
                                         setActionLoading(n.id + "reject-photo");
                                         try {
-                                          await api.post(`/api/needs/${n.id}/reject-photo`, { reason: "Item did not meet quality standards." });
+                                          await api.post(`/api/needs/${n.id}/reject-photo`, { reason: adminNote || "" });
                                           load();
                                         } catch { /* silent */ }
                                         setActionLoading("");
@@ -849,30 +850,42 @@ function ReviewQueueTab() {
   const approveNeed = async (id) => {
     if (!window.confirm("Approve this request and broadcast to all subscribers?")) return;
     setActionLoading(id + "approve");
-    try { await api.post(`/api/get-help/admin/needs/${id}/approve`, {}); load(); } catch {}
+    try {
+      await api.post(`/api/get-help/admin/needs/${id}/approve`, {});
+    } catch { /* silent */ }
     setActionLoading("");
+    load();
   };
 
   const rejectNeed = async (id) => {
     const reason = window.prompt("Rejection reason (will be sent to requester):");
     if (!reason) return;
     setActionLoading(id + "reject");
-    try { await api.post(`/api/get-help/admin/needs/${id}/reject`, { reason }); load(); } catch {}
+    try {
+      await api.post(`/api/get-help/admin/needs/${id}/reject`, { reason });
+    } catch { /* silent */ }
     setActionLoading("");
+    load();
   };
 
   const approvePhoto = async (id) => {
     setActionLoading(id + "approve-photo");
-    try { await api.post(`/api/needs/${id}/approve-photo`, {}); load(); } catch {}
+    try {
+      await api.post(`/api/needs/${id}/approve-photo`, {});
+    } catch { /* silent */ }
     setActionLoading("");
+    load();
   };
 
   const rejectPhoto = async (id) => {
     const adminNote = window.prompt("Add a note for the donor (optional — AI analysis reason will be included automatically):");
-    if (adminNote === null) return; // cancelled
+    if (adminNote === null) return;
     setActionLoading(id + "reject-photo");
-    try { await api.post(`/api/needs/${id}/reject-photo`, { reason: adminNote || "" }); load(); } catch {}
+    try {
+      await api.post(`/api/needs/${id}/reject-photo`, { reason: adminNote || "" });
+    } catch { /* silent */ }
     setActionLoading("");
+    load();
   };
 
   const totalPending = queue.length + photoQueue.length;
