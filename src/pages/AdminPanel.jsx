@@ -245,23 +245,40 @@ function NeedsTab() {
                                   </div>
                                 )}
 
-                                {/* Approve Photo button — only for matched status */}
+                                {/* Approve / Reject Photo buttons — only for matched status */}
                                 {n.status === "matched" && (
-                                  <button
-                                    className="btn-primary"
-                                    style={{ ...st.actionBtn, background: "#4A7C6F", marginTop: 12 }}
-                                    disabled={!!actionLoading}
-                                    onClick={async () => {
-                                      setActionLoading(n.id + "approve-photo");
-                                      try {
-                                        await api.post(`/api/needs/${n.id}/approve-photo`, {});
-                                        load();
-                                      } catch { /* silent */ }
-                                      setActionLoading("");
-                                    }}
-                                  >
-                                    {actionLoading === n.id + "approve-photo" ? "Approving..." : "Approve Photo & Send to Delivery"}
-                                  </button>
+                                  <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+                                    <button
+                                      className="btn-primary"
+                                      style={{ ...st.actionBtn, background: "#4A7C6F" }}
+                                      disabled={!!actionLoading}
+                                      onClick={async () => {
+                                        setActionLoading(n.id + "approve-photo");
+                                        try {
+                                          await api.post(`/api/needs/${n.id}/approve-photo`, {});
+                                          load();
+                                        } catch { /* silent */ }
+                                        setActionLoading("");
+                                      }}
+                                    >
+                                      {actionLoading === n.id + "approve-photo" ? "Approving..." : "Approve & Send to Delivery"}
+                                    </button>
+                                    <button
+                                      style={{ ...st.actionBtn, background: "transparent", color: "#D96B4A", border: "1.5px solid #D96B4A", borderRadius: 8 }}
+                                      disabled={!!actionLoading}
+                                      onClick={async () => {
+                                        if (!window.confirm("Reject this photo? The need will be reopened for a new donor.")) return;
+                                        setActionLoading(n.id + "reject-photo");
+                                        try {
+                                          await api.post(`/api/needs/${n.id}/reject-photo`, { reason: "Item did not meet quality standards." });
+                                          load();
+                                        } catch { /* silent */ }
+                                        setActionLoading("");
+                                      }}
+                                    >
+                                      {actionLoading === n.id + "reject-photo" ? "Rejecting..." : "Reject & Reopen"}
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             )}
