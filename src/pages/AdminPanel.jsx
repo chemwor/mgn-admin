@@ -141,12 +141,84 @@ function NeedsTab() {
     setActionLoading("");
   };
 
+  const photoReviewNeeds = needs.filter(n =>
+    n.status === "matched" && n.donor_photo_url && !n.ready_for_pickup_at
+  );
+
   return (
     <div>
       <div style={st.tabHeader}>
         <h2 className="serif" style={st.tabTitle}>Needs</h2>
         <span style={st.badge}>{needs.length}</span>
       </div>
+
+      {/* Photo Review Queue */}
+      {!loading && photoReviewNeeds.length > 0 && (
+        <div style={{ marginBottom: 24, padding: "16px 20px", background: "#FEF9EE", border: "1px solid #E8A020", borderRadius: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "#92400E", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            📸 Photos Awaiting Review ({photoReviewNeeds.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {photoReviewNeeds.map(n => {
+              const analysis = n.photo_analysis || {};
+              const scores = analysis.scores || {};
+              const rec = analysis.recommendation || "manual_review";
+              const recColor = rec === "reject" ? "#D96B4A" : rec === "auto_approve" ? "#4A7C6F" : "#C8851A";
+              return (
+                <div key={n.id} style={{ display: "flex", gap: 16, alignItems: "center", padding: "12px 16px", background: "white", borderRadius: 10, border: "1px solid rgba(11,29,53,0.06)", flexWrap: "wrap" }}>
+                  {n.donor_photo_url && (
+                    <img src={n.donor_photo_url} alt={n.item_needed} style={{ width: 64, height: 64, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+                  )}
+                  <div style={{ flex: 1, minWidth: 150 }}>
+                    <div style={{ fontWeight: 600, color: "#0B1D35", fontSize: 14 }}>{n.item_needed}</div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>By {n.requester_name} · {n.zip_code}</div>
+                    {Object.keys(scores).length > 0 && (
+                      <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                        {Object.entries(scores).map(([k, v]) => (
+                          <span key={k} style={{ fontSize: 11, fontWeight: 600, color: v >= 70 ? "#4A7C6F" : v >= 50 ? "#C8851A" : "#D96B4A" }}>
+                            {k.replace(/_/g, " ")}: {v}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {rec && (
+                      <span style={{ display: "inline-block", marginTop: 4, fontSize: 11, fontWeight: 700, color: recColor, background: `${recColor}15`, padding: "2px 8px", borderRadius: 4 }}>
+                        {rec === "auto_approve" ? "✓ Auto-Approve" : rec === "reject" ? "✗ Reject" : "⚠ Manual Review"}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                    <button
+                      className="btn-primary"
+                      style={{ padding: "8px 16px", fontSize: 13, background: "#4A7C6F", borderRadius: 8 }}
+                      disabled={!!actionLoading}
+                      onClick={async () => {
+                        setActionLoading(n.id + "approve-photo");
+                        try { await api.post(`/api/needs/${n.id}/approve-photo`, {}); load(); } catch {}
+                        setActionLoading("");
+                      }}
+                    >
+                      {actionLoading === n.id + "approve-photo" ? "..." : "Approve"}
+                    </button>
+                    <button
+                      style={{ padding: "8px 16px", fontSize: 13, background: "transparent", color: "#D96B4A", border: "1.5px solid #D96B4A", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}
+                      disabled={!!actionLoading}
+                      onClick={async () => {
+                        if (!window.confirm("Reject this photo? The need will be reopened.")) return;
+                        setActionLoading(n.id + "reject-photo");
+                        try { await api.post(`/api/needs/${n.id}/reject-photo`, {}); load(); } catch {}
+                        setActionLoading("");
+                      }}
+                    >
+                      {actionLoading === n.id + "reject-photo" ? "..." : "Reject"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Flag note */}
       {!loading && needs.some(n => n.is_flagged) && (
