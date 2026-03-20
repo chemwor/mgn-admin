@@ -125,8 +125,9 @@ function NeedsTab() {
     setActionLoading("");
   };
 
-  const rebroadcast = async (id) => {
-    if (!window.confirm(`Rebroadcast this need to all ${subscriberCount} subscribers?`)) return;
+  const rebroadcast = async (id, status) => {
+    const target = status === "ready_for_pickup" ? "delivery volunteers" : "donors & helpers";
+    if (!window.confirm(`Rebroadcast this need to all ${target}?`)) return;
     setActionLoading(id + "rebroadcast");
     try {
       await api.post(`/api/needs/${id}/rebroadcast`, {});
@@ -305,7 +306,7 @@ function NeedsTab() {
                                   {actionLoading === n.id + "delivered" ? "..." : "Mark Delivered"}
                                 </button>
                               )}
-                              {n.status === "open" && (
+                              {(n.status === "open" || n.status === "ready_for_pickup") && (
                                 rebroadcastCooldown[n.id] ? (
                                   <button style={{ ...st.actionBtn, ...st.rebroadcastBtnDisabled }} disabled title={rebroadcastCooldown[n.id]}>
                                     Recently Broadcast
@@ -318,9 +319,10 @@ function NeedsTab() {
                                   <button
                                     style={{ ...st.actionBtn, ...st.rebroadcastBtn }}
                                     disabled={!!actionLoading}
-                                    onClick={() => rebroadcast(n.id)}
+                                    onClick={() => rebroadcast(n.id, n.status)}
                                   >
-                                    {actionLoading === n.id + "rebroadcast" ? "Sending..." : "Resend Broadcast"}
+                                    {actionLoading === n.id + "rebroadcast" ? "Sending..." :
+                                      n.status === "ready_for_pickup" ? "Resend to Delivery Volunteers" : "Resend to Donors"}
                                   </button>
                                 )
                               )}
