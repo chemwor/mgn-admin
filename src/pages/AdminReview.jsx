@@ -161,40 +161,74 @@ export default function AdminReview() {
             <div style={st.section}>
               <h3 style={st.sectionTitle}>AI Analysis</h3>
 
-              {overallScore !== null && (
-                <div style={{ marginBottom: 16 }}>
-                  <div style={st.detailLabel}>Overall Score</div>
-                  <div style={st.scoreBarWrap}>
-                    <div style={{ ...st.scoreBarFill, width: `${Math.min(100, Math.max(0, overallScore))}%` }} />
+              {overallScore !== null && (() => {
+                const oc = overallScore >= 70 ? "#4A7C6F" : overallScore >= 50 ? "#E8A020" : "#D96B4A";
+                return (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Overall Score</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: oc }}>{overallScore}/100</span>
+                    </div>
+                    <div style={{ ...st.scoreBarWrap, height: 10 }}>
+                      <div style={{ ...st.scoreBarFill, width: `${Math.min(100, Math.max(0, overallScore))}%`, background: oc }} />
+                    </div>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", marginTop: 4 }}>{overallScore}/100</div>
+                );
+              })()}
+
+              {Object.keys(scores).length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 16 }}>
+                  {Object.entries(scores).map(([key, val]) => {
+                    const barColor = typeof val === "number"
+                      ? val >= 70 ? "#4A7C6F" : val >= 50 ? "#E8A020" : "#D96B4A"
+                      : "#6b7280";
+                    return (
+                      <div key={key}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", textTransform: "capitalize" }}>
+                            {key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                          </span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: barColor }}>{val}</span>
+                        </div>
+                        {typeof val === "number" && (
+                          <div style={st.scoreBarWrap}>
+                            <div style={{ ...st.scoreBarFill, width: `${Math.min(100, Math.max(0, val))}%`, background: barColor }} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
-              {Object.keys(scores).length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
-                  {Object.entries(scores).map(([key, val]) => (
-                    <div key={key}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                        <span style={st.detailLabel}>{key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)" }}>{typeof val === "number" ? val : val}</span>
-                      </div>
-                      {typeof val === "number" && (
-                        <div style={st.scoreBarWrap}>
-                          <div style={{ ...st.scoreBarFill, width: `${Math.min(100, Math.max(0, val))}%` }} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
+              {aiScore.overall_pass !== undefined && (
+                <div style={{ marginBottom: 16 }}>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 700,
+                    background: aiScore.overall_pass ? "rgba(74,124,111,0.1)" : "rgba(217,107,74,0.1)",
+                    color: aiScore.overall_pass ? "#4A7C6F" : "#D96B4A",
+                  }}>
+                    {aiScore.overall_pass ? "✓ Passed AI Review" : "✗ Flagged by AI"}
+                  </span>
                 </div>
               )}
 
               {flags.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
-                  <div style={st.detailLabel}>Flags</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+                  <div style={{ ...st.detailLabel, marginBottom: 8 }}>Flags</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {flags.map((flag, i) => (
-                      <span key={i} style={st.flagBadge}>{typeof flag === "string" ? flag : flag.label || flag.type || JSON.stringify(flag)}</span>
+                      <div key={i} style={{
+                        display: "flex", alignItems: "flex-start", gap: 8,
+                        padding: "8px 14px", borderRadius: 8,
+                        background: "rgba(232,160,32,0.06)",
+                        border: "1px solid rgba(232,160,32,0.15)",
+                        fontSize: 13, color: "#92400E", lineHeight: 1.5,
+                      }}>
+                        <span style={{ flexShrink: 0, marginTop: 1 }}>⚠</span>
+                        <span>{typeof flag === "string" ? flag : flag.label || flag.type || JSON.stringify(flag)}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -208,7 +242,7 @@ export default function AdminReview() {
               )}
 
               {Object.keys(scores).length === 0 && flags.length === 0 && !reviewReason && overallScore === null && (
-                <div style={{ fontSize: 14, color: "var(--text-light)", padding: "16px 0" }}>No AI analysis data available.</div>
+                <div style={{ fontSize: 14, color: "#9ca3af", padding: "16px 0" }}>No AI analysis data available.</div>
               )}
             </div>
 
@@ -357,7 +391,7 @@ const st = {
   },
   scoreBarFill: {
     height: "100%", borderRadius: 100,
-    background: "linear-gradient(90deg, var(--sage), var(--amber))",
+    background: "#4A7C6F",
     transition: "width 0.4s ease",
   },
 
