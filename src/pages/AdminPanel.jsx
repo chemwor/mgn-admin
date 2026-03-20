@@ -141,84 +141,12 @@ function NeedsTab() {
     setActionLoading("");
   };
 
-  const photoReviewNeeds = needs.filter(n =>
-    n.status === "matched" && n.donor_photo_url && !n.ready_for_pickup_at
-  );
-
   return (
     <div>
       <div style={st.tabHeader}>
         <h2 className="serif" style={st.tabTitle}>Needs</h2>
         <span style={st.badge}>{needs.length}</span>
       </div>
-
-      {/* Photo Review Queue */}
-      {!loading && photoReviewNeeds.length > 0 && (
-        <div style={{ marginBottom: 24, padding: "16px 20px", background: "#FEF9EE", border: "1px solid #E8A020", borderRadius: 12 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: "#92400E", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            📸 Photos Awaiting Review ({photoReviewNeeds.length})
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {photoReviewNeeds.map(n => {
-              const analysis = n.photo_analysis || {};
-              const scores = analysis.scores || {};
-              const rec = analysis.recommendation || "manual_review";
-              const recColor = rec === "reject" ? "#D96B4A" : rec === "auto_approve" ? "#4A7C6F" : "#C8851A";
-              return (
-                <div key={n.id} style={{ display: "flex", gap: 16, alignItems: "center", padding: "12px 16px", background: "white", borderRadius: 10, border: "1px solid rgba(11,29,53,0.06)", flexWrap: "wrap" }}>
-                  {n.donor_photo_url && (
-                    <img src={n.donor_photo_url} alt={n.item_needed} style={{ width: 64, height: 64, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
-                  )}
-                  <div style={{ flex: 1, minWidth: 150 }}>
-                    <div style={{ fontWeight: 600, color: "#0B1D35", fontSize: 14 }}>{n.item_needed}</div>
-                    <div style={{ fontSize: 12, color: "#6b7280" }}>By {n.requester_name} · {n.zip_code}</div>
-                    {Object.keys(scores).length > 0 && (
-                      <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-                        {Object.entries(scores).map(([k, v]) => (
-                          <span key={k} style={{ fontSize: 11, fontWeight: 600, color: v >= 70 ? "#4A7C6F" : v >= 50 ? "#C8851A" : "#D96B4A" }}>
-                            {k.replace(/_/g, " ")}: {v}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {rec && (
-                      <span style={{ display: "inline-block", marginTop: 4, fontSize: 11, fontWeight: 700, color: recColor, background: `${recColor}15`, padding: "2px 8px", borderRadius: 4 }}>
-                        {rec === "auto_approve" ? "✓ Auto-Approve" : rec === "reject" ? "✗ Reject" : "⚠ Manual Review"}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                    <button
-                      className="btn-primary"
-                      style={{ padding: "8px 16px", fontSize: 13, background: "#4A7C6F", borderRadius: 8 }}
-                      disabled={!!actionLoading}
-                      onClick={async () => {
-                        setActionLoading(n.id + "approve-photo");
-                        try { await api.post(`/api/needs/${n.id}/approve-photo`, {}); load(); } catch {}
-                        setActionLoading("");
-                      }}
-                    >
-                      {actionLoading === n.id + "approve-photo" ? "..." : "Approve"}
-                    </button>
-                    <button
-                      style={{ padding: "8px 16px", fontSize: 13, background: "transparent", color: "#D96B4A", border: "1.5px solid #D96B4A", borderRadius: 8, cursor: "pointer", fontWeight: 600 }}
-                      disabled={!!actionLoading}
-                      onClick={async () => {
-                        if (!window.confirm("Reject this photo? The need will be reopened.")) return;
-                        setActionLoading(n.id + "reject-photo");
-                        try { await api.post(`/api/needs/${n.id}/reject-photo`, {}); load(); } catch {}
-                        setActionLoading("");
-                      }}
-                    >
-                      {actionLoading === n.id + "reject-photo" ? "..." : "Reject"}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Flag note */}
       {!loading && needs.some(n => n.is_flagged) && (
@@ -902,127 +830,193 @@ function TutoringTab() {
  * ═══════════════════════════════════════════════════════════════════ */
 function ReviewQueueTab() {
   const [queue, setQueue] = useState([]);
+  const [photoQueue, setPhotoQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState("");
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get("/api/get-help/admin/needs/review-queue")
-      .then(r => setQueue(r.data?.data || []))
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get("/api/get-help/admin/needs/review-queue").then(r => setQueue(r.data?.data || [])).catch(() => {}),
+      api.get("/api/needs").then(r => {
+        const all = r.data?.data || [];
+        setPhotoQueue(all.filter(n => n.status === "matched" && n.donor_photo_url && !n.ready_for_pickup_at));
+      }).catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
   useEffect(load, [load]);
 
-  const approve = async (id) => {
+  const approveNeed = async (id) => {
     if (!window.confirm("Approve this request and broadcast to all subscribers?")) return;
     setActionLoading(id + "approve");
-    try {
-      await api.post(`/api/get-help/admin/needs/${id}/approve`, {});
-      load();
-    } catch { /* silent */ }
+    try { await api.post(`/api/get-help/admin/needs/${id}/approve`, {}); load(); } catch {}
     setActionLoading("");
   };
 
-  const reject = async (id) => {
+  const rejectNeed = async (id) => {
     const reason = window.prompt("Rejection reason (will be sent to requester):");
     if (!reason) return;
     setActionLoading(id + "reject");
-    try {
-      await api.post(`/api/get-help/admin/needs/${id}/reject`, { reason });
-      load();
-    } catch { /* silent */ }
+    try { await api.post(`/api/get-help/admin/needs/${id}/reject`, { reason }); load(); } catch {}
     setActionLoading("");
   };
+
+  const approvePhoto = async (id) => {
+    setActionLoading(id + "approve-photo");
+    try { await api.post(`/api/needs/${id}/approve-photo`, {}); load(); } catch {}
+    setActionLoading("");
+  };
+
+  const rejectPhoto = async (id) => {
+    if (!window.confirm("Reject this photo? The need will be reopened for a new donor.")) return;
+    setActionLoading(id + "reject-photo");
+    try { await api.post(`/api/needs/${id}/reject-photo`, {}); load(); } catch {}
+    setActionLoading("");
+  };
+
+  const totalPending = queue.length + photoQueue.length;
+
+  // Reusable AI score bars
+  const ScoreBars = ({ scores, overall_pass, flags, review_reason }) => (
+    <div style={{ marginTop: 12, padding: "14px 16px", background: "#F1F5F9", borderRadius: 10, fontSize: 12 }}>
+      <div style={{ fontWeight: 700, color: "#0B1D35", marginBottom: 10 }}>AI Analysis</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {Object.entries(scores).map(([k, v]) => {
+          const c = v >= 70 ? "#4A7C6F" : v >= 50 ? "#E8A020" : "#D96B4A";
+          return (
+            <div key={k}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                <span style={{ color: "#6b7280", textTransform: "capitalize", fontWeight: 500 }}>{k.replace(/_/g, " ")}</span>
+                <span style={{ fontWeight: 700, color: c }}>{v}</span>
+              </div>
+              <div style={{ height: 6, background: "rgba(11,29,53,0.06)", borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${Math.min(v, 100)}%`, background: c, borderRadius: 3, transition: "width 0.4s ease" }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {overall_pass !== undefined && (
+        <div style={{ marginTop: 10, padding: "6px 10px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, background: overall_pass ? "rgba(74,124,111,0.1)" : "rgba(217,107,74,0.1)", color: overall_pass ? "#4A7C6F" : "#D96B4A" }}>
+          {overall_pass ? "✓ Passed" : "✗ Flagged"}
+        </div>
+      )}
+      {flags && flags.length > 0 && (
+        <div style={{ marginTop: 8, color: "#C8851A", fontSize: 12 }}>Flags: {flags.join(", ")}</div>
+      )}
+      {review_reason && (
+        <div style={{ marginTop: 4, color: "#6b7280", fontStyle: "italic", fontSize: 12 }}>{review_reason}</div>
+      )}
+    </div>
+  );
 
   return (
     <div>
       <div style={st.tabHeader}>
         <h2 className="serif" style={st.tabTitle}>Review Queue</h2>
-        {queue.length > 0 && <span style={{ ...st.badge, background: "rgba(217,107,74,0.12)", color: "#D96B4A" }}>{queue.length} pending</span>}
+        {totalPending > 0 && <span style={{ ...st.badge, background: "rgba(217,107,74,0.12)", color: "#D96B4A" }}>{totalPending} pending</span>}
       </div>
 
-      {loading ? <Skeleton rows={4} /> : queue.length === 0 ? (
-        <Empty msg="No requests pending review. All clear!" />
+      {loading ? <Skeleton rows={4} /> : totalPending === 0 ? (
+        <Empty msg="No items pending review. All clear!" />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {queue.map(n => {
-            const ai = n.ai_score || {};
-            const scores = ai.scores || {};
-            const flags = ai.flags || [];
-            return (
-              <div key={n.id} style={{ background: "white", borderRadius: 14, padding: "20px 24px", border: "1px solid rgba(11,29,53,0.06)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-                  {n.category && <span style={{ ...st.statusBadge, background: "rgba(232,160,32,0.12)", color: "#C8851A" }}>{n.category}</span>}
-                  <span style={{ ...st.statusBadge, background: "rgba(232,160,32,0.15)", color: "#C8851A" }}>PENDING</span>
-                  <span style={{ fontSize: 12, color: "var(--text-light)", marginLeft: "auto" }}>{fmtDate(n.created_at)}</span>
-                </div>
-                <div style={{ fontWeight: 700, fontSize: 16, color: "var(--navy)", marginBottom: 6 }}>{n.item_needed}</div>
-                <div style={{ fontSize: 14, color: "var(--text-mid)", marginBottom: 4 }}>By: {n.requester_name} &middot; {n.contact_email}</div>
-                {n.description && <div style={{ fontSize: 13, color: "var(--text-mid)", lineHeight: 1.5, marginBottom: 8 }}>{n.description}</div>}
-                {n.zip_code && <div style={{ fontSize: 13, color: "var(--text-light)" }}>📍 {n.zip_code}</div>}
-
-                {/* AI Scores */}
-                {Object.keys(scores).length > 0 && (
-                  <div style={{ marginTop: 12, padding: "14px 16px", background: "#F1F5F9", borderRadius: 10, fontSize: 12 }}>
-                    <div style={{ fontWeight: 700, color: "#0B1D35", marginBottom: 10 }}>AI Moderation Scores</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {Object.entries(scores).map(([k, v]) => {
-                        const barColor = v >= 70 ? "#4A7C6F" : v >= 50 ? "#E8A020" : "#D96B4A";
-                        return (
-                          <div key={k}>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                              <span style={{ color: "#6b7280", textTransform: "capitalize", fontWeight: 500 }}>{k.replace(/_/g, " ")}</span>
-                              <span style={{ fontWeight: 700, color: barColor }}>{v}</span>
-                            </div>
-                            <div style={{ height: 6, background: "rgba(11,29,53,0.06)", borderRadius: 3, overflow: "hidden" }}>
-                              <div style={{ height: "100%", width: `${Math.min(v, 100)}%`, background: barColor, borderRadius: 3, transition: "width 0.4s ease" }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {ai.overall_pass !== undefined && (
-                      <div style={{ marginTop: 10, padding: "6px 10px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, background: ai.overall_pass ? "rgba(74,124,111,0.1)" : "rgba(217,107,74,0.1)", color: ai.overall_pass ? "#4A7C6F" : "#D96B4A" }}>
-                        {ai.overall_pass ? "✓ Passed" : "✗ Flagged"}
-                      </div>
-                    )}
-                    {flags.length > 0 && (
-                      <div style={{ marginTop: 8, color: "#C8851A", fontSize: 12 }}>Flags: {flags.join(", ")}</div>
-                    )}
-                    {ai.review_reason && (
-                      <div style={{ marginTop: 4, color: "#6b7280", fontStyle: "italic", fontSize: 12 }}>{ai.review_reason}</div>
-                    )}
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div style={{ display: "flex", gap: 10, marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(11,29,53,0.06)" }}>
-                  <button
-                    className="btn-primary"
-                    style={{ ...st.actionBtn, background: "var(--sage)" }}
-                    disabled={!!actionLoading}
-                    onClick={() => approve(n.id)}
-                  >
-                    {actionLoading === n.id + "approve" ? "Approving..." : "Approve & Broadcast"}
-                  </button>
-                  <button
-                    style={{ ...st.actionBtn, background: "transparent", border: "1.5px solid #D96B4A", color: "#D96B4A", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                    disabled={!!actionLoading}
-                    onClick={() => reject(n.id)}
-                  >
-                    {actionLoading === n.id + "reject" ? "Rejecting..." : "Reject"}
-                  </button>
-                  <a
-                    href={`/panel/review/${n.id}`}
-                    style={{ ...st.actionBtn, color: "var(--text-light)", textDecoration: "underline", fontSize: 13, display: "inline-flex", alignItems: "center" }}
-                  >
-                    Full Review →
-                  </a>
-                </div>
+        <>
+          {/* ── NEED APPROVALS ────────────────────────────── */}
+          {queue.length > 0 && (
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#0B1D35", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                🔍 Need Requests ({queue.length})
               </div>
-            );
-          })}
-        </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {queue.map(n => {
+                  const ai = n.ai_score || {};
+                  const scores = ai.scores || {};
+                  return (
+                    <div key={n.id} style={{ background: "white", borderRadius: 14, padding: "20px 24px", border: "1px solid rgba(11,29,53,0.06)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+                        {n.category && <span style={{ ...st.statusBadge, background: "rgba(232,160,32,0.12)", color: "#C8851A" }}>{n.category}</span>}
+                        <span style={{ ...st.statusBadge, background: "rgba(232,160,32,0.15)", color: "#C8851A" }}>PENDING</span>
+                        <span style={{ fontSize: 12, color: "var(--text-light)", marginLeft: "auto" }}>{fmtDate(n.created_at)}</span>
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 16, color: "var(--navy)", marginBottom: 6 }}>{n.item_needed}</div>
+                      <div style={{ fontSize: 14, color: "var(--text-mid)", marginBottom: 4 }}>By: {n.requester_name} · {n.contact_email}</div>
+                      {n.description && <div style={{ fontSize: 13, color: "var(--text-mid)", lineHeight: 1.5, marginBottom: 8 }}>{n.description}</div>}
+                      {n.zip_code && <div style={{ fontSize: 13, color: "var(--text-light)" }}>📍 {n.zip_code}</div>}
+
+                      {Object.keys(scores).length > 0 && (
+                        <ScoreBars scores={scores} overall_pass={ai.overall_pass} flags={ai.flags} review_reason={ai.review_reason} />
+                      )}
+
+                      <div style={{ display: "flex", gap: 10, marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(11,29,53,0.06)" }}>
+                        <button className="btn-primary" style={{ ...st.actionBtn, background: "var(--sage)" }} disabled={!!actionLoading} onClick={() => approveNeed(n.id)}>
+                          {actionLoading === n.id + "approve" ? "Approving..." : "Approve & Broadcast"}
+                        </button>
+                        <button style={{ ...st.actionBtn, background: "transparent", border: "1.5px solid #D96B4A", color: "#D96B4A", borderRadius: 8, fontWeight: 600, cursor: "pointer" }} disabled={!!actionLoading} onClick={() => rejectNeed(n.id)}>
+                          {actionLoading === n.id + "reject" ? "Rejecting..." : "Reject"}
+                        </button>
+                        <a href={`/panel/review/${n.id}`} style={{ ...st.actionBtn, color: "var(--text-light)", textDecoration: "underline", fontSize: 13, display: "inline-flex", alignItems: "center" }}>
+                          Full Review →
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── PHOTO REVIEWS ─────────────────────────────── */}
+          {photoQueue.length > 0 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#0B1D35", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                📸 Donor Photo Reviews ({photoQueue.length})
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {photoQueue.map(n => {
+                  const analysis = n.photo_analysis || {};
+                  const scores = analysis.scores || {};
+                  const rec = analysis.recommendation || "manual_review";
+                  const recColor = rec === "reject" ? "#D96B4A" : rec === "auto_approve" ? "#4A7C6F" : "#C8851A";
+                  const recLabel = rec === "reject" ? "✗ Reject Recommended" : rec === "auto_approve" ? "✓ Auto-Approve" : "⚠ Manual Review";
+                  return (
+                    <div key={n.id} style={{ background: "white", borderRadius: 14, padding: "20px 24px", border: "1px solid rgba(11,29,53,0.06)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+                        {n.category && <span style={{ ...st.statusBadge, background: "rgba(232,160,32,0.12)", color: "#C8851A" }}>{n.category}</span>}
+                        <span style={{ ...st.statusBadge, background: `${recColor}18`, color: recColor }}>{recLabel}</span>
+                        <span style={{ fontSize: 12, color: "var(--text-light)", marginLeft: "auto" }}>{fmtDate(n.matched_at)}</span>
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 16, color: "var(--navy)", marginBottom: 6 }}>{n.item_needed}</div>
+                      <div style={{ fontSize: 14, color: "var(--text-mid)", marginBottom: 4 }}>By: {n.requester_name} · {n.zip_code}</div>
+                      {n.description && <div style={{ fontSize: 13, color: "var(--text-mid)", lineHeight: 1.5, marginBottom: 8 }}>{n.description}</div>}
+
+                      {/* Photo */}
+                      {n.donor_photo_url && (
+                        <div style={{ marginTop: 12, marginBottom: 12 }}>
+                          <img src={n.donor_photo_url} alt={n.item_needed} style={{ maxWidth: "100%", maxHeight: 240, borderRadius: 10, border: "1px solid rgba(11,29,53,0.06)", objectFit: "cover" }} />
+                        </div>
+                      )}
+
+                      {/* AI Scores */}
+                      {Object.keys(scores).length > 0 && (
+                        <ScoreBars scores={scores} overall_pass={analysis.overall_pass} flags={analysis.flags} review_reason={analysis.summary} />
+                      )}
+
+                      {/* Actions */}
+                      <div style={{ display: "flex", gap: 10, marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(11,29,53,0.06)" }}>
+                        <button className="btn-primary" style={{ ...st.actionBtn, background: "#4A7C6F" }} disabled={!!actionLoading} onClick={() => approvePhoto(n.id)}>
+                          {actionLoading === n.id + "approve-photo" ? "Approving..." : "Approve & Send to Delivery"}
+                        </button>
+                        <button style={{ ...st.actionBtn, background: "transparent", border: "1.5px solid #D96B4A", color: "#D96B4A", borderRadius: 8, fontWeight: 600, cursor: "pointer" }} disabled={!!actionLoading} onClick={() => rejectPhoto(n.id)}>
+                          {actionLoading === n.id + "reject-photo" ? "Rejecting..." : "Reject & Reopen"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
