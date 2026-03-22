@@ -408,7 +408,7 @@ function UsersTab() {
   const load = useCallback(() => {
     setLoading(true);
     api.get("/api/profile/admin/users")
-      .then(r => setUsers(r.data?.data || []))
+      .then(r => setUsers(r.data?.data?.users || r.data?.data || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
