@@ -25,15 +25,27 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const cards = stats
+  const impactCards = stats
     ? [
-        { label: "Total Needs Submitted", value: stats.total_needs?.toLocaleString() || "—", icon: "📋" },
+        { label: "Needs Fulfilled", value: stats.total_fulfilled?.toLocaleString() || "0", icon: "✅" },
+        { label: "Families Helped", value: stats.families_helped?.toLocaleString() || "0", icon: "👨‍👩‍👧" },
+        { label: "Active Volunteers", value: stats.active_helpers?.toLocaleString() || stats.total_subscribers?.toLocaleString() || "0", icon: "🤝" },
+        { label: "Fulfillment Rate", value: stats.fulfillment_rate ? `${stats.fulfillment_rate}%` : "—", icon: "📊" },
         { label: "Open Requests", value: stats.open_needs?.toLocaleString() || "0", icon: "🔔", highlight: true },
-        { label: "Needs Fulfilled", value: stats.total_fulfilled?.toLocaleString() || "—", icon: "✅" },
         { label: "Fulfilled This Week", value: stats.fulfilled_this_week?.toLocaleString() || "0", icon: "📈" },
-        { label: "Active Volunteers", value: stats.total_subscribers?.toLocaleString() || "—", icon: "🤝" },
       ]
     : [];
+
+  const serviceCards = stats
+    ? [
+        { label: "Avg Time to Fulfill", value: stats.avg_fulfillment_hours ? `${stats.avg_fulfillment_hours}h` : "—", icon: "⏱️" },
+        { label: "Active Resources", value: stats.active_resources?.toLocaleString() || "0", icon: "📋" },
+        { label: "Career Quizzes", value: stats.quiz_sessions?.toLocaleString() || "0", icon: "🧭" },
+        { label: "Resume Reviews", value: stats.resume_reviews?.toLocaleString() || "0", icon: "📄" },
+      ]
+    : [];
+
+  const categoryData = stats?.needs_by_category || {};
 
   return (
     <div style={st.page}>
@@ -64,15 +76,54 @@ export default function Dashboard() {
             <p style={{ color: "#6b7280", fontSize: 14, marginTop: 16 }}>Loading stats...</p>
           </div>
         ) : (
-          <div style={st.grid}>
-            {cards.map((c, i) => (
-              <div key={i} style={{ ...st.card, ...(c.highlight ? st.cardHighlight : {}) }}>
-                <div style={st.cardIcon}>{c.icon}</div>
-                <div style={st.cardValue}>{c.value}</div>
-                <div style={st.cardLabel}>{c.label}</div>
-              </div>
-            ))}
-          </div>
+          <>
+            {/* Impact metrics */}
+            <div style={st.sectionLabel}>Community Impact</div>
+            <div style={st.grid}>
+              {impactCards.map((c, i) => (
+                <div key={i} style={{ ...st.card, ...(c.highlight ? st.cardHighlight : {}) }}>
+                  <div style={st.cardIcon}>{c.icon}</div>
+                  <div style={st.cardValue}>{c.value}</div>
+                  <div style={st.cardLabel}>{c.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Services */}
+            <div style={{ ...st.sectionLabel, marginTop: 32 }}>Platform Services</div>
+            <div style={st.grid}>
+              {serviceCards.map((c, i) => (
+                <div key={i} style={st.card}>
+                  <div style={st.cardIcon}>{c.icon}</div>
+                  <div style={st.cardValue}>{c.value}</div>
+                  <div style={st.cardLabel}>{c.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Needs by category */}
+            {Object.keys(categoryData).length > 0 && (
+              <>
+                <div style={{ ...st.sectionLabel, marginTop: 32 }}>Fulfilled by Category</div>
+                <div style={{ background: "white", borderRadius: 16, border: "1px solid #e2e8f0", padding: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                  {Object.entries(categoryData).sort((a, b) => b[1] - a[1]).map(([cat, count]) => {
+                    const max = Math.max(...Object.values(categoryData));
+                    return (
+                      <div key={cat} style={{ marginBottom: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, color: "#374151", fontWeight: 500 }}>{cat}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#0B1D35" }}>{count}</span>
+                        </div>
+                        <div style={{ height: 8, background: "#f1f5f9", borderRadius: 4, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${(count / max) * 100}%`, background: "#E8A020", borderRadius: 4, transition: "width 0.4s" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </>
         )}
 
         <p style={st.refreshNote}>Stats refresh automatically every 60 seconds</p>
@@ -154,6 +205,11 @@ const st = {
     fontWeight: 600, color: "#0B1D35", marginBottom: 4,
   },
   cardLabel: { fontSize: 13, color: "#6b7280", fontWeight: 500 },
+  sectionLabel: {
+    fontSize: 13, fontWeight: 700, color: "#0B1D35",
+    textTransform: "uppercase", letterSpacing: "0.06em",
+    marginBottom: 16,
+  },
   refreshNote: {
     textAlign: "center", fontSize: 12, color: "#9ca3af",
     marginTop: 20,

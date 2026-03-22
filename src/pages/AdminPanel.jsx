@@ -28,6 +28,7 @@ const TABS = [
   { key: "careers",     label: "Careers",       icon: "🧭" },
   { key: "resumes",    label: "Resumes",       icon: "📄" },
   { key: "events",     label: "Events",        icon: "📅" },
+  { key: "metrics",    label: "Metrics",       icon: "📊" },
 ];
 
 const RESOURCE_INIT = { name: "", category: "", description: "", address: "", city: "", state: "GA", zip_code: "", phone: "", website: "", hours: "" };
@@ -86,6 +87,7 @@ export default function Admin() {
         {tab === "careers" && <CareersTab />}
         {tab === "resumes" && <ResumesTab />}
         {tab === "events" && <EventsTab />}
+        {tab === "metrics" && <MetricsTab />}
       </div>
     </div>
   );
@@ -2195,6 +2197,117 @@ function EventsTab() {
 
 
 /* ── Styles ─────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════ *
+ *  METRICS TAB
+ * ═══════════════════════════════════════════════════════════════════ */
+function MetricsTab() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/api/needs/stats/admin")
+      .then(r => setData(r.data?.data || {}))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Skeleton rows={6} />;
+  if (!data) return <Empty msg="Could not load metrics." />;
+
+  const MetricCard = ({ label, value, icon, color }) => (
+    <div style={{ background: "white", borderRadius: 12, padding: "20px", border: "1px solid rgba(11,29,53,0.06)", textAlign: "center" }}>
+      <div style={{ fontSize: 24, marginBottom: 8 }}>{icon}</div>
+      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 600, color: color || "var(--navy)" }}>{value}</div>
+      <div style={{ fontSize: 12, color: "var(--text-mid)", fontWeight: 500, marginTop: 4 }}>{label}</div>
+    </div>
+  );
+
+  const pipeline = data.pipeline || {};
+  const pipelineSteps = ["open", "matched", "ready_for_pickup", "picked_up", "delivered", "fulfilled"];
+  const pipelineTotal = Object.values(pipeline).reduce((a, b) => a + b, 0) || 1;
+
+  return (
+    <div>
+      <div style={st.tabHeader}>
+        <h2 className="serif" style={st.tabTitle}>Metrics</h2>
+      </div>
+
+      {/* Today's activity */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Today</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 12 }}>
+          <MetricCard label="Needs Submitted" value={data.needs_today} icon="📋" />
+          <MetricCard label="New Accounts" value={data.new_accounts_today} icon="👤" />
+          <MetricCard label="AI Calls" value={data.ai_usage_today?.total || 0} icon="🤖" />
+          <MetricCard label="Stuck 48h+" value={data.stuck_needs_48h} icon="⚠️" color={data.stuck_needs_48h > 0 ? "#D96B4A" : "var(--sage)"} />
+        </div>
+      </div>
+
+      {/* Pipeline funnel */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Pipeline Funnel</div>
+        <div style={{ background: "white", borderRadius: 12, padding: "20px", border: "1px solid rgba(11,29,53,0.06)" }}>
+          {pipelineSteps.map(step => {
+            const count = pipeline[step] || 0;
+            const pct = Math.round((count / pipelineTotal) * 100);
+            const label = { open: "Open", matched: "Matched", ready_for_pickup: "Ready for Pickup", picked_up: "Picked Up", delivered: "Delivered", fulfilled: "Fulfilled" }[step] || step;
+            const color = { open: "#E8A020", matched: "#C8851A", ready_for_pickup: "#4A7C6F", picked_up: "#3B82F6", delivered: "#22C55E", fulfilled: "#22C55E" }[step] || "#6b7280";
+            return (
+              <div key={step} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color }}>{count} ({pct}%)</span>
+                </div>
+                <div style={{ height: 8, background: "#f1f5f9", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 4, transition: "width 0.4s" }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* AI Usage */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>AI Usage This Month</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 12 }}>
+          <MetricCard label="Resumes" value={data.ai_usage_month?.resumes || 0} icon="📄" />
+          <MetricCard label="Cover Letters" value={data.ai_usage_month?.cover_letters || 0} icon="✉️" />
+          <MetricCard label="Interviews" value={data.ai_usage_month?.interviews || 0} icon="🎤" />
+          <MetricCard label="Total AI Calls" value={data.ai_usage_month?.total || 0} icon="🤖" />
+        </div>
+      </div>
+
+      {/* Alerts */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Attention Needed</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 12 }}>
+          <MetricCard label="Stale Resources" value={data.stale_resources} icon="📋" color={data.stale_resources > 0 ? "#C8851A" : "var(--sage)"} />
+          <MetricCard label="Events Pending" value={data.events_pending} icon="📅" color={data.events_pending > 0 ? "#C8851A" : "var(--sage)"} />
+          <MetricCard label="Mentor Requests" value={data.mentor_requests_open} icon="🤝" color={data.mentor_requests_open > 0 ? "#C8851A" : "var(--sage)"} />
+          <MetricCard label="Helpers to Re-engage" value={data.helpers_needing_reengagement} icon="📞" color={data.helpers_needing_reengagement > 0 ? "#C8851A" : "var(--sage)"} />
+        </div>
+      </div>
+
+      {/* New accounts by role */}
+      {data.new_accounts_by_role && Object.keys(data.new_accounts_by_role).length > 0 && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>New Accounts Today by Role</div>
+          <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid rgba(11,29,53,0.06)", display: "flex", gap: 16, flexWrap: "wrap" }}>
+            {Object.entries(data.new_accounts_by_role).map(([role, count]) => (
+              <div key={role} style={{ fontSize: 14 }}>
+                <span style={{ textTransform: "capitalize", color: "var(--text-mid)" }}>{role.replace("_", " ")}: </span>
+                <strong style={{ color: "var(--navy)" }}>{count}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 const st = {
   /* Layout */
   page: {},
