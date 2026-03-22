@@ -40,6 +40,9 @@ const NAV_GROUPS = [
   { label: "Content", items: [
     { key: "resources", label: "Resources", icon: "📋" },
   ]},
+  { label: null, items: [
+    { key: "feedback", label: "Feedback", icon: "💬" },
+  ]},
 ];
 
 const RESOURCE_INIT = { name: "", category: "", description: "", address: "", city: "", state: "GA", zip_code: "", phone: "", website: "", hours: "" };
@@ -127,6 +130,7 @@ export default function Admin() {
           {tab === "careers" && <CareersTab />}
           {tab === "resumes" && <ResumesTab />}
           {tab === "events" && <EventsTab />}
+          {tab === "feedback" && <FeedbackTab />}
         </div>
       </div>
     </div>
@@ -2533,6 +2537,147 @@ function EventsTab() {
 /* ═══════════════════════════════════════════════════════════════════ *
  *  METRICS TAB
  * ═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════ *
+ *  FEEDBACK TAB
+ * ═══════════════════════════════════════════════════════════════════ */
+const FEEDBACK_STATUS_COLORS = {
+  new: { bg: "rgba(232,160,32,0.12)", color: "#C8851A" },
+  reviewed: { bg: "rgba(59,130,246,0.12)", color: "#3B82F6" },
+  planned: { bg: "rgba(139,92,246,0.12)", color: "#8B5CF6" },
+  in_progress: { bg: "rgba(74,124,111,0.12)", color: "#4A7C6F" },
+  done: { bg: "rgba(34,197,94,0.12)", color: "#22C55E" },
+  closed: { bg: "rgba(107,114,128,0.08)", color: "#6B7280" },
+};
+
+const TYPE_ICONS = { bug: "🐛", feature: "💡", general: "💬" };
+
+function FeedbackTab() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [expanded, setExpanded] = useState(null);
+  const [updating, setUpdating] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api.get(`/api/feedback/admin${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`)
+      .then(r => setItems(r.data?.data || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [statusFilter]);
+  useEffect(load, [load]);
+
+  const updateStatus = async (id, status) => {
+    setUpdating(id);
+    try {
+      await api.patch(`/api/feedback/admin/${id}`, { status });
+      load();
+    } catch { /* silent */ }
+    setUpdating("");
+  };
+
+  const updateNotes = async (id, notes) => {
+    try {
+      await api.patch(`/api/feedback/admin/${id}`, { admin_notes: notes });
+    } catch { /* silent */ }
+  };
+
+  const newCount = items.filter(i => i.status === "new").length;
+
+  return (
+    <div>
+      <div style={st.tabHeader}>
+        <h2 className="serif" style={st.tabTitle}>Feedback</h2>
+        <span style={st.badge}>{items.length}</span>
+        {newCount > 0 && <span style={{ ...st.badge, background: "rgba(217,107,74,0.12)", color: "#D96B4A", marginLeft: 4 }}>{newCount} new</span>}
+      </div>
+
+      {/* Filter */}
+      <div style={{ marginBottom: 16 }}>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(11,29,53,0.12)", fontSize: 13, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <option value="all">All Status</option>
+          <option value="new">New</option>
+          <option value="reviewed">Reviewed</option>
+          <option value="planned">Planned</option>
+          <option value="in_progress">In Progress</option>
+          <option value="done">Done</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+
+      {loading ? <Skeleton rows={4} /> : items.length === 0 ? <Empty msg="No feedback submissions yet." /> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {items.map(item => {
+            const isExpanded = expanded === item.id;
+            const sc = FEEDBACK_STATUS_COLORS[item.status] || FEEDBACK_STATUS_COLORS.new;
+            return (
+              <div key={item.id} style={{ background: "white", borderRadius: 12, border: "1px solid rgba(11,29,53,0.06)", overflow: "hidden" }}>
+                <div
+                  onClick={() => setExpanded(isExpanded ? null : item.id)}
+                  style={{ padding: "16px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}
+                >
+                  <span style={{ fontSize: 18 }}>{TYPE_ICONS[item.type] || "💬"}</span>
+                  <div style={{ flex: 1, minWidth: 150 }}>
+                    <div style={{ fontWeight: 600, color: "var(--navy)", fontSize: 14 }}>{item.subject}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-mid)", marginTop: 2 }}>
+                      {item.name || "Anonymous"}{item.email ? ` · ${item.email}` : ""} · {new Date(item.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100, background: sc.bg, color: sc.color, textTransform: "capitalize" }}>
+                    {item.status.replace("_", " ")}
+                  </span>
+                </div>
+
+                {isExpanded && (
+                  <div style={{ padding: "0 20px 20px", borderTop: "1px solid rgba(11,29,53,0.04)" }}>
+                    <div style={{ fontSize: 14, color: "var(--navy)", lineHeight: 1.7, marginTop: 16, whiteSpace: "pre-wrap" }}>{item.message}</div>
+
+                    {/* Status actions */}
+                    <div style={{ marginTop: 16, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {["new", "reviewed", "planned", "in_progress", "done", "closed"].map(s => {
+                        const active = item.status === s;
+                        const c = FEEDBACK_STATUS_COLORS[s];
+                        return (
+                          <button
+                            key={s}
+                            onClick={() => !active && updateStatus(item.id, s)}
+                            disabled={active || updating === item.id}
+                            style={{
+                              fontSize: 11, fontWeight: 600, padding: "4px 12px", borderRadius: 100, cursor: active ? "default" : "pointer",
+                              background: active ? c.color : "transparent", color: active ? "white" : c.color,
+                              border: `1px solid ${c.color}`, textTransform: "capitalize",
+                              fontFamily: "'Plus Jakarta Sans', sans-serif", opacity: updating === item.id ? 0.5 : 1,
+                            }}
+                          >
+                            {s.replace("_", " ")}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Admin notes */}
+                    <div style={{ marginTop: 16 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--navy)", display: "block", marginBottom: 4 }}>Admin Notes</label>
+                      <textarea
+                        defaultValue={item.admin_notes || ""}
+                        onBlur={e => updateNotes(item.id, e.target.value)}
+                        placeholder="Internal notes about this feedback..."
+                        rows={2}
+                        style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid rgba(11,29,53,0.1)", fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif", outline: "none", resize: "vertical" }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 const SHOW_PIPELINE_PCT = 20;
 const AI_COSTS = { resumes: 0.02, cover_letters: 0.01, interviews: 0.08 };
 
