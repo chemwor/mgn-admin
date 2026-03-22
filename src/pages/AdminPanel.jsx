@@ -2200,9 +2200,23 @@ function EventsTab() {
 /* ═══════════════════════════════════════════════════════════════════ *
  *  METRICS TAB
  * ═══════════════════════════════════════════════════════════════════ */
+const SHOW_PIPELINE_PCT = 20;
+const AI_COSTS = { resumes: 0.02, cover_letters: 0.01, interviews: 0.08 };
+
+function timeAgo(iso) {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const h = Math.floor(diff / 3600000);
+  if (h < 1) return "just now";
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
 function MetricsTab() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [checklist, setChecklist] = useState([false, false, false, false, false]);
 
   useEffect(() => {
     api.get("/api/needs/stats/admin")
@@ -2214,95 +2228,226 @@ function MetricsTab() {
   if (loading) return <Skeleton rows={6} />;
   if (!data) return <Empty msg="Could not load metrics." />;
 
-  const MetricCard = ({ label, value, icon, color }) => (
-    <div style={{ background: "white", borderRadius: 12, padding: "20px", border: "1px solid rgba(11,29,53,0.06)", textAlign: "center" }}>
-      <div style={{ fontSize: 24, marginBottom: 8 }}>{icon}</div>
-      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 600, color: color || "var(--navy)" }}>{value}</div>
-      <div style={{ fontSize: 12, color: "var(--text-mid)", fontWeight: 500, marginTop: 4 }}>{label}</div>
-    </div>
-  );
-
+  const stuckCount = data.stuck_needs_48h || 0;
+  const stuckDetail = data.stuck_needs_detail || [];
   const pipeline = data.pipeline || {};
+  const pipelineTotal = data.pipeline_total || Object.values(pipeline).reduce((a, b) => a + b, 0) || 1;
   const pipelineSteps = ["open", "matched", "ready_for_pickup", "picked_up", "delivered", "fulfilled"];
-  const pipelineTotal = Object.values(pipeline).reduce((a, b) => a + b, 0) || 1;
+  const aiMonth = data.ai_usage_month || {};
+  const activity = data.recent_activity || [];
+  const checkedCount = checklist.filter(Boolean).length;
+
+  const checklistItems = [
+    { text: "Review and broadcast any new needs submitted", badge: data.needs_today > 0 ? data.needs_today : null },
+    { text: "Check for stuck needs (48h+) and re-broadcast", badge: stuckCount > 0 ? stuckCount : null },
+    { text: "Approve or reject pending community events", badge: data.events_pending > 0 ? data.events_pending : null },
+    { text: "Match any open career mentor requests", badge: data.mentor_requests_open > 0 ? data.mentor_requests_open : null },
+    { text: "Verify new volunteer signups and send welcome", badge: data.new_accounts_today > 0 ? data.new_accounts_today : null },
+  ];
+
+  const attentionItems = [
+    { label: "Stuck 48h+", count: stuckCount, icon: "⚠️", action: "View needs →", tab: "needs" },
+    { label: "Stale Resources", count: data.stale_resources, icon: "📋", action: "Review →", tab: "resources" },
+    { label: "Events Pending", count: data.events_pending, icon: "📅", action: "Approve →", tab: "events" },
+    { label: "Mentor Requests", count: data.mentor_requests_open, icon: "🤝", action: "Match →", tab: "careers" },
+    { label: "Helpers to Re-engage", count: data.helpers_needing_reengagement, icon: "📞", action: "Review →", tab: "subscribers" },
+  ].filter(item => item.count > 0 || item.label === "Stuck 48h+");
+
+  const aiTotal = aiMonth.total || 0;
+  const aiCostMonth = (aiMonth.resumes || 0) * AI_COSTS.resumes + (aiMonth.cover_letters || 0) * AI_COSTS.cover_letters + (aiMonth.interviews || 0) * AI_COSTS.interviews;
+  const dayOfMonth = new Date().getDate();
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const projectedCost = aiTotal > 0 ? (aiCostMonth / dayOfMonth) * daysInMonth : 0;
+
+  const dotColor = { amber: "#E8A020", navy: "#0B1D35", green: "#22C55E", blue: "#3B82F6", grey: "#9ca3af" };
 
   return (
     <div>
       <div style={st.tabHeader}>
-        <h2 className="serif" style={st.tabTitle}>Metrics</h2>
+        <h2 className="serif" style={st.tabTitle}>Dashboard</h2>
       </div>
 
-      {/* Today's activity */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Today</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 12 }}>
-          <MetricCard label="Needs Submitted" value={data.needs_today} icon="📋" />
-          <MetricCard label="New Accounts" value={data.new_accounts_today} icon="👤" />
-          <MetricCard label="AI Calls" value={data.ai_usage_today?.total || 0} icon="🤖" />
-          <MetricCard label="Stuck 48h+" value={data.stuck_needs_48h} icon="⚠️" color={data.stuck_needs_48h > 0 ? "#D96B4A" : "var(--sage)"} />
-        </div>
-      </div>
-
-      {/* Pipeline funnel */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Pipeline Funnel</div>
-        <div style={{ background: "white", borderRadius: 12, padding: "20px", border: "1px solid rgba(11,29,53,0.06)" }}>
-          {pipelineSteps.map(step => {
-            const count = pipeline[step] || 0;
-            const pct = Math.round((count / pipelineTotal) * 100);
-            const label = { open: "Open", matched: "Matched", ready_for_pickup: "Ready for Pickup", picked_up: "Picked Up", delivered: "Delivered", fulfilled: "Fulfilled" }[step] || step;
-            const color = { open: "#E8A020", matched: "#C8851A", ready_for_pickup: "#4A7C6F", picked_up: "#3B82F6", delivered: "#22C55E", fulfilled: "#22C55E" }[step] || "#6b7280";
-            return (
-              <div key={step} style={{ marginBottom: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color }}>{count} ({pct}%)</span>
-                </div>
-                <div style={{ height: 8, background: "#f1f5f9", borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 4, transition: "width 0.4s" }} />
-                </div>
+      {/* ── ALERT BANNER ── */}
+      {stuckCount > 0 && (
+        <div style={{ background: "#FEF3DC", border: "1px solid #E8A020", borderRadius: 12, padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>⚠</span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "#92400E" }}>
+              {stuckCount} need{stuckCount > 1 ? "s" : ""} stuck for 48+ hours without a helper response
+            </div>
+            <div style={{ fontSize: 13, color: "#92400E", marginTop: 4 }}>
+              These families are still waiting. You can re-broadcast to volunteers or reach out directly.
+            </div>
+            {stuckDetail.length > 0 && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "#92400E" }}>
+                {stuckDetail.map((n, i) => (
+                  <div key={i}>• {n.item} — submitted {timeAgo(n.created_at)}</div>
+                ))}
               </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* AI Usage */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>AI Usage This Month</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 12 }}>
-          <MetricCard label="Resumes" value={data.ai_usage_month?.resumes || 0} icon="📄" />
-          <MetricCard label="Cover Letters" value={data.ai_usage_month?.cover_letters || 0} icon="✉️" />
-          <MetricCard label="Interviews" value={data.ai_usage_month?.interviews || 0} icon="🎤" />
-          <MetricCard label="Total AI Calls" value={data.ai_usage_month?.total || 0} icon="🤖" />
-        </div>
-      </div>
-
-      {/* Alerts */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Attention Needed</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 12 }}>
-          <MetricCard label="Stale Resources" value={data.stale_resources} icon="📋" color={data.stale_resources > 0 ? "#C8851A" : "var(--sage)"} />
-          <MetricCard label="Events Pending" value={data.events_pending} icon="📅" color={data.events_pending > 0 ? "#C8851A" : "var(--sage)"} />
-          <MetricCard label="Mentor Requests" value={data.mentor_requests_open} icon="🤝" color={data.mentor_requests_open > 0 ? "#C8851A" : "var(--sage)"} />
-          <MetricCard label="Helpers to Re-engage" value={data.helpers_needing_reengagement} icon="📞" color={data.helpers_needing_reengagement > 0 ? "#C8851A" : "var(--sage)"} />
-        </div>
-      </div>
-
-      {/* New accounts by role */}
-      {data.new_accounts_by_role && Object.keys(data.new_accounts_by_role).length > 0 && (
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>New Accounts Today by Role</div>
-          <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid rgba(11,29,53,0.06)", display: "flex", gap: 16, flexWrap: "wrap" }}>
-            {Object.entries(data.new_accounts_by_role).map(([role, count]) => (
-              <div key={role} style={{ fontSize: 14 }}>
-                <span style={{ textTransform: "capitalize", color: "var(--text-mid)" }}>{role.replace("_", " ")}: </span>
-                <strong style={{ color: "var(--navy)" }}>{count}</strong>
-              </div>
-            ))}
+            )}
           </div>
         </div>
       )}
+
+      {/* ── DAILY CHECKLIST ── */}
+      <div style={{ background: "white", border: "1px solid rgba(11,29,53,0.06)", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: "var(--navy)" }}>Daily checklist</div>
+          <div style={{ fontSize: 12, color: checkedCount === 5 ? "var(--sage)" : "var(--text-light)" }}>{checkedCount} of 5 done</div>
+        </div>
+        {checklistItems.map((item, i) => (
+          <div key={i} onClick={() => setChecklist(prev => { const n = [...prev]; n[i] = !n[i]; return n; })}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", cursor: "pointer" }}>
+            <div style={{ width: 20, height: 20, borderRadius: 4, border: checklist[i] ? "none" : "2px solid var(--navy)", background: checklist[i] ? "var(--navy)" : "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12, color: "white" }}>
+              {checklist[i] && "✓"}
+            </div>
+            <span style={{ fontSize: 13, color: checklist[i] ? "var(--text-light)" : "var(--navy)", textDecoration: checklist[i] ? "line-through" : "none", flex: 1 }}>{item.text}</span>
+            {item.badge && !checklist[i] && (
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#92400E", background: "rgba(232,160,32,0.12)", padding: "2px 8px", borderRadius: 100 }}>{item.badge} pending</span>
+            )}
+          </div>
+        ))}
+        {checkedCount === 5 && (
+          <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(74,124,111,0.06)", border: "0.5px solid rgba(74,124,111,0.15)", borderRadius: 8, fontSize: 13, color: "var(--sage)" }}>
+            All done for today — great work.
+          </div>
+        )}
+      </div>
+
+      {/* ── TODAY ── */}
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Today</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 12, marginBottom: 28 }}>
+        <div style={{ background: "white", borderRadius: 12, padding: 20, border: "1px solid rgba(11,29,53,0.06)", textAlign: "center" }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>📋</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 600, color: "var(--navy)" }}>{data.needs_today}</div>
+          <div style={{ fontSize: 12, color: "var(--text-mid)", fontWeight: 500, marginTop: 4 }}>Needs Submitted</div>
+          {data.needs_today === 0 && <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--text-light)", marginTop: 4 }}>Check back after outreach goes live</div>}
+        </div>
+        <div style={{ background: "white", borderRadius: 12, padding: 20, border: "1px solid rgba(11,29,53,0.06)", textAlign: "center" }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>👤</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 600, color: "var(--navy)" }}>{data.new_accounts_today}</div>
+          <div style={{ fontSize: 12, color: "var(--text-mid)", fontWeight: 500, marginTop: 4 }}>New Accounts</div>
+          {data.new_accounts_today === 0 && <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--text-light)", marginTop: 4 }}>Will grow as users discover MGN</div>}
+        </div>
+        <div style={{ background: "white", borderRadius: 12, padding: 20, border: "1px solid rgba(11,29,53,0.06)", textAlign: "center" }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>🤖</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 600, color: "var(--navy)" }}>{data.ai_usage_today?.total || 0}</div>
+          <div style={{ fontSize: 12, color: "var(--text-mid)", fontWeight: 500, marginTop: 4 }}>AI Calls</div>
+          {(data.ai_usage_today?.total || 0) === 0 && <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--text-light)", marginTop: 4 }}>AI moderation runs on each submission</div>}
+        </div>
+        <div style={{ background: stuckCount > 0 ? "#FEF3DC" : "white", borderRadius: 12, padding: 20, border: stuckCount > 0 ? "1px solid #E8A020" : "1px solid rgba(11,29,53,0.06)", textAlign: "center", cursor: stuckCount > 0 ? "pointer" : "default" }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>⚠️</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 600, color: stuckCount > 0 ? "#D96B4A" : "var(--sage)" }}>{stuckCount}</div>
+          <div style={{ fontSize: 12, color: stuckCount > 0 ? "#92400E" : "var(--text-mid)", fontWeight: 500, marginTop: 4 }}>Stuck 48h+</div>
+          {stuckCount > 0 && <div style={{ fontSize: 11, fontWeight: 500, color: "#92400E", marginTop: 4 }}>Action required →</div>}
+        </div>
+      </div>
+
+      {/* ── PIPELINE FUNNEL ── */}
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Pipeline Funnel</div>
+      <div style={{ background: "white", borderRadius: 12, padding: 20, border: "1px solid rgba(11,29,53,0.06)", marginBottom: 28 }}>
+        <div style={{ fontSize: 13, color: "var(--text-mid)", marginBottom: 16 }}>
+          {pipelineTotal} total needs — {pipeline.delivered || 0 + (pipeline.fulfilled || 0)} fulfilled
+        </div>
+        {pipelineSteps.map(step => {
+          const count = pipeline[step] || 0;
+          const pct = pipelineTotal > 0 ? Math.round((count / pipelineTotal) * 100) : 0;
+          const label = { open: "Open", matched: "Matched", ready_for_pickup: "Ready for Pickup", picked_up: "Picked Up", delivered: "Delivered", fulfilled: "Fulfilled" }[step] || step;
+          const color = { open: "#E8A020", matched: "#C8851A", ready_for_pickup: "#4A7C6F", picked_up: "#3B82F6", delivered: "#22C55E", fulfilled: "#22C55E" }[step] || "#6b7280";
+          const isStuckStage = step === "open" && stuckCount > 0;
+          return (
+            <div key={step} style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{label}</span>
+                  {isStuckStage && <span style={{ fontSize: 10, fontWeight: 700, color: "#92400E", background: "rgba(232,160,32,0.12)", padding: "1px 6px", borderRadius: 100 }}>{stuckCount} stuck 48h+</span>}
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color }}>
+                  {pipelineTotal >= SHOW_PIPELINE_PCT ? `${count} (${pct}%)` : `${count} of ${pipelineTotal} total`}
+                </span>
+              </div>
+              <div style={{ height: 8, background: "#f1f5f9", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 4, transition: "width 0.4s" }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── AI TOOLS — USAGE & COST ── */}
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>AI Tools — Usage & Cost</div>
+      <div style={{ background: "white", borderRadius: 12, padding: 20, border: "1px solid rgba(11,29,53,0.06)", marginBottom: 28 }}>
+        {[
+          { label: "Resume Reviews", count: aiMonth.resumes || 0, rate: AI_COSTS.resumes, icon: "📄" },
+          { label: "Cover Letters", count: aiMonth.cover_letters || 0, rate: AI_COSTS.cover_letters, icon: "✉️" },
+          { label: "Interview Sessions", count: aiMonth.interviews || 0, rate: AI_COSTS.interviews, icon: "🎤" },
+        ].map((tool, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < 2 ? "1px solid rgba(11,29,53,0.04)" : "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 16 }}>{tool.icon}</span>
+              <span style={{ fontSize: 13, color: "var(--navy)", fontWeight: 500 }}>{tool.label}</span>
+            </div>
+            {tool.count > 0 ? (
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--navy)" }}>{tool.count} · ${(tool.count * tool.rate).toFixed(2)}</span>
+            ) : (
+              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-light)", background: "#f1f5f9", padding: "2px 8px", borderRadius: 100 }}>Not yet live</span>
+            )}
+          </div>
+        ))}
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(11,29,53,0.06)" }}>
+          {aiTotal > 0 ? (
+            <>
+              <div style={{ fontSize: 13, color: "var(--text-mid)" }}>Projected month-end: ~${projectedCost.toFixed(2)}</div>
+              <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--text-light)", marginTop: 2 }}>At current pace — updates daily</div>
+            </>
+          ) : (
+            <div style={{ fontSize: 12, fontStyle: "italic", color: "var(--text-light)" }}>
+              AI tools active — estimated $0.02 per resume review, $0.08 per interview session
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── ATTENTION NEEDED ── */}
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Attention Needed</div>
+      {attentionItems.filter(i => i.count > 0).length === 0 ? (
+        <div style={{ background: "rgba(74,124,111,0.04)", border: "0.5px solid rgba(74,124,111,0.15)", borderRadius: 12, padding: "12px 14px", marginBottom: 28, fontSize: 13, color: "var(--sage)" }}>
+          No pending items — everything is up to date.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}>
+          {attentionItems.filter(i => i.count > 0).map((item, i) => (
+            <div key={i} style={{ background: "white", borderRadius: 10, padding: "12px 16px", border: "1px solid rgba(11,29,53,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span>{item.icon}</span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--navy)" }}>{item.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: item.count > 0 ? "#C8851A" : "var(--sage)" }}>{item.count}</span>
+              </div>
+              <button onClick={() => { const el = document.querySelector('[data-tab]'); }} style={{ background: "transparent", border: "1px solid rgba(11,29,53,0.15)", borderRadius: 6, padding: "4px 12px", fontSize: 12, fontWeight: 600, color: "var(--navy)", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {item.action}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── RECENT ACTIVITY ── */}
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Recent Activity</div>
+      <div style={{ background: "white", borderRadius: 12, padding: 16, border: "1px solid rgba(11,29,53,0.06)" }}>
+        {activity.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "16px 0", fontSize: 13, color: "var(--text-light)" }}>
+            No recent activity — share MGN with your network to get things moving.
+          </div>
+        ) : (
+          activity.map((event, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < activity.length - 1 ? "1px solid rgba(11,29,53,0.03)" : "none" }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor[event.color] || "#9ca3af", flexShrink: 0 }} />
+              <span style={{ fontSize: 13, color: "var(--navy)", flex: 1 }}>{event.text}</span>
+              <span style={{ fontSize: 11, color: "var(--text-light)", flexShrink: 0 }}>{timeAgo(event.at)}</span>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
