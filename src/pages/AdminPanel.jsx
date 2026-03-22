@@ -398,21 +398,51 @@ const ROLE_COLORS = {
 
 function UsersTab() {
   const [users, setUsers] = useState([]);
+  const [blocked, setBlocked] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [editingUser, setEditingUser] = useState(null);
   const [editRoles, setEditRoles] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [showBanned, setShowBanned] = useState(false);
+  const [banning, setBanning] = useState("");
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get("/api/profile/admin/users")
-      .then(r => setUsers(r.data?.data?.users || r.data?.data || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get("/api/profile/admin/users").then(r => setUsers(r.data?.data?.users || r.data?.data || [])).catch(() => {}),
+      api.get("/api/get-help/admin/abuse").then(r => setBlocked(r.data?.data?.blocked_submitters || [])).catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
   useEffect(load, [load]);
+
+  const banUser = async (email) => {
+    const reason = window.prompt(`Ban ${email}? Enter a reason:`);
+    if (reason === null) return;
+    setBanning(email);
+    try {
+      await api.post("/api/get-help/admin/submitters/block", { email, reason: reason || "Banned by admin" });
+      load();
+    } catch (e) {
+      alert(e.response?.data?.error || "Failed to ban user.");
+    }
+    setBanning("");
+  };
+
+  const unbanUser = async (email) => {
+    if (!window.confirm(`Unban ${email}?`)) return;
+    setBanning(email);
+    try {
+      await api.post("/api/get-help/admin/submitters/clear", { email });
+      load();
+    } catch (e) {
+      alert(e.response?.data?.error || "Failed to unban user.");
+    }
+    setBanning("");
+  };
+
+  const blockedEmails = new Set(blocked.map(b => b.email?.toLowerCase()));
 
   const filtered = users.filter(u => {
     const matchSearch = !search ||
@@ -510,18 +540,76 @@ function UsersTab() {
                   {u.can_tutor && <span style={{ fontSize: 10, fontWeight: 600, color: "var(--sage)", background: "rgba(74,124,111,0.08)", padding: "2px 6px", borderRadius: 4 }}>Tutor</span>}
                 </div>
 
-                {/* Edit button */}
-                <button
-                  onClick={() => openEdit(u)}
-                  style={{ background: "transparent", border: "1px solid rgba(11,29,53,0.12)", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 600, color: "var(--navy)", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}
-                >
-                  Edit roles
-                </button>
+                {/* Banned indicator */}
+                {blockedEmails.has((u.email || "").toLowerCase()) && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#D96B4A", background: "rgba(217,107,74,0.1)", padding: "3px 10px", borderRadius: 100 }}>Banned</span>
+                )}
+
+                {/* Actions */}
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button
+                    onClick={() => openEdit(u)}
+                    style={{ background: "transparent", border: "1px solid rgba(11,29,53,0.12)", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600, color: "var(--navy)", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                  >
+                    Roles
+                  </button>
+                  {blockedEmails.has((u.email || "").toLowerCase()) ? (
+                    <button
+                      onClick={() => unbanUser(u.email)}
+                      disabled={banning === u.email}
+                      style={{ background: "transparent", border: "1px solid var(--sage)", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600, color: "var(--sage)", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", opacity: banning === u.email ? 0.5 : 1 }}
+                    >
+                      Unban
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => banUser(u.email)}
+                      disabled={banning === u.email}
+                      style={{ background: "transparent", border: "1px solid #D96B4A", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600, color: "#D96B4A", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", opacity: banning === u.email ? 0.5 : 1 }}
+                    >
+                      Ban
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* Banned users section */}
+      <div style={{ marginTop: 32 }}>
+        <button onClick={() => setShowBanned(!showBanned)} style={{ background: "none", border: "none", fontSize: 13, fontWeight: 700, color: "var(--navy)", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: 8, fontFamily: "'Plus Jakarta Sans', sans-serif", marginBottom: 12 }}>
+          🚫 Banned Emails ({blocked.length})
+          <span style={{ fontSize: 11, color: "var(--text-light)" }}>{showBanned ? "▲" : "▼"}</span>
+        </button>
+        {showBanned && (
+          blocked.length === 0 ? (
+            <div style={{ background: "rgba(74,124,111,0.04)", border: "0.5px solid rgba(74,124,111,0.15)", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "var(--sage)" }}>
+              No banned users.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {blocked.map((b, i) => (
+                <div key={i} style={{ background: "white", borderRadius: 10, padding: "12px 16px", border: "1px solid rgba(217,107,74,0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#D96B4A" }}>{b.email}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-mid)", marginTop: 2 }}>{b.reason || "No reason"}</div>
+                    {b.blocked_at && <div style={{ fontSize: 11, color: "var(--text-light)", marginTop: 2 }}>Banned {new Date(b.blocked_at).toLocaleDateString()}</div>}
+                  </div>
+                  <button
+                    onClick={() => unbanUser(b.email)}
+                    disabled={banning === b.email}
+                    style={{ background: "transparent", border: "1px solid var(--sage)", borderRadius: 6, padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "var(--sage)", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", opacity: banning === b.email ? 0.5 : 1 }}
+                  >
+                    Unban
+                  </button>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
 
       {/* Edit roles modal */}
       {editingUser && (
