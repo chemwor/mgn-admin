@@ -50,9 +50,13 @@ export default function Admin() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    api.get("/api/get-help/admin/needs/review-queue")
-      .then(r => setReviewCount((r.data?.data || []).length))
-      .catch(() => {});
+    Promise.all([
+      api.get("/api/get-help/admin/needs/review-queue").then(r => (r.data?.data || []).length).catch(() => 0),
+      api.get("/api/needs").then(r => {
+        const all = r.data?.data || [];
+        return all.filter(n => n.status === "matched" && n.donor_photo_url && !n.ready_for_pickup_at).length;
+      }).catch(() => 0),
+    ]).then(([needReview, photoReview]) => setReviewCount(needReview + photoReview));
   }, [tab]);
 
   // Collapse sidebar on mobile
@@ -87,8 +91,8 @@ export default function Admin() {
                   style={{
                     ...st.navItem,
                     background: tab === item.key ? "rgba(232,160,32,0.12)" : "transparent",
-                    color: tab === item.key ? "#0B1D35" : "rgba(255,255,255,0.6)",
-                    fontWeight: tab === item.key ? 700 : 400,
+                    color: tab === item.key ? "white" : "rgba(255,255,255,0.85)",
+                    fontWeight: tab === item.key ? 700 : 500,
                     borderLeft: tab === item.key ? "3px solid #E8A020" : "3px solid transparent",
                   }}
                   title={item.label}
@@ -2511,7 +2515,7 @@ const st = {
   },
   navGroupLabel: {
     fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: "0.08em", color: "rgba(255,255,255,0.3)",
+    letterSpacing: "0.08em", color: "rgba(255,255,255,0.45)",
     padding: "8px 16px 4px", marginTop: 4,
   },
   navItem: {
