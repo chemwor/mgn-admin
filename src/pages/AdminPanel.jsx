@@ -16,27 +16,38 @@ const STATUS_COLORS = {
   fulfilled: { bg: "rgba(11,29,53,0.08)",      color: "var(--text-light)" },
 };
 
-const TABS = [
-  { key: "needs",       label: "Needs",       icon: "🙏" },
-  { key: "review",      label: "Review Queue", icon: "🔍" },
-  { key: "subscribers", label: "Subscribers",  icon: "👥" },
-  { key: "resources",   label: "Resources",    icon: "📋" },
-  { key: "tutoring",    label: "Tutoring",     icon: "📚" },
-  { key: "abuse",       label: "Abuse",        icon: "🚩" },
-  { key: "partners",    label: "Partners",     icon: "🏢" },
-  { key: "pros",        label: "Professionals", icon: "👨‍⚕️" },
-  { key: "careers",     label: "Careers",       icon: "🧭" },
-  { key: "resumes",    label: "Resumes",       icon: "📄" },
-  { key: "events",     label: "Events",        icon: "📅" },
-  { key: "metrics",    label: "Metrics",       icon: "📊" },
+const NAV_GROUPS = [
+  { label: null, items: [
+    { key: "metrics", label: "Dashboard", icon: "📊" },
+  ]},
+  { label: "Operations", items: [
+    { key: "needs", label: "Needs", icon: "🙏" },
+    { key: "review", label: "Review Queue", icon: "🔍" },
+    { key: "abuse", label: "Abuse Reports", icon: "🚩" },
+  ]},
+  { label: "Community", items: [
+    { key: "subscribers", label: "Subscribers", icon: "👥" },
+    { key: "partners", label: "Partners", icon: "🏢" },
+    { key: "pros", label: "Professionals", icon: "👨‍⚕️" },
+  ]},
+  { label: "Programs", items: [
+    { key: "careers", label: "Careers", icon: "🧭" },
+    { key: "tutoring", label: "Tutoring", icon: "📚" },
+    { key: "resumes", label: "Resumes", icon: "📄" },
+    { key: "events", label: "Events", icon: "📅" },
+  ]},
+  { label: "Content", items: [
+    { key: "resources", label: "Resources", icon: "📋" },
+  ]},
 ];
 
 const RESOURCE_INIT = { name: "", category: "", description: "", address: "", city: "", state: "GA", zip_code: "", phone: "", website: "", hours: "" };
 
 /* ═══════════════════════════════════════════════════════════════════ */
 export default function Admin() {
-  const [tab, setTab] = useState("needs");
+  const [tab, setTab] = useState("metrics");
   const [reviewCount, setReviewCount] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     api.get("/api/get-help/admin/needs/review-queue")
@@ -44,50 +55,73 @@ export default function Admin() {
       .catch(() => {});
   }, [tab]);
 
+  // Collapse sidebar on mobile
+  useEffect(() => {
+    const check = () => setSidebarOpen(window.innerWidth > 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   return (
     <div style={st.page}>
       <PageMeta title="Admin Panel" />
 
-      {/* Page header */}
-      <div style={st.pageHeader}>
-        <h1 className="serif" style={st.pageTitle}>Admin Panel</h1>
-      </div>
-
-      {/* Tabs */}
-      <nav style={st.tabBar}>
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            style={{
-              ...st.tabBtn,
-              background: tab === t.key ? "#0B1D35" : "transparent",
-              color: tab === t.key ? "white" : "#6B7280",
-            }}
-          >
-            <span>{t.icon}</span>
-            <span>{t.label}</span>
-            {t.key === "review" && reviewCount > 0 && (
-              <span style={st.reviewBadge}>{reviewCount}</span>
-            )}
+      <div style={st.layoutWrap}>
+        {/* Sidebar */}
+        <nav style={{ ...st.sidebar, ...(sidebarOpen ? {} : st.sidebarCollapsed) }}>
+          {/* Mobile toggle */}
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} style={st.sidebarToggle}>
+            {sidebarOpen ? "✕" : "☰"}
           </button>
-        ))}
-      </nav>
 
-      {/* Tab content */}
-      <div style={st.content}>
-        {tab === "needs" && <NeedsTab />}
-        {tab === "review" && <ReviewQueueTab />}
-        {tab === "subscribers" && <SubscribersTab />}
-        {tab === "resources" && <ResourcesTab />}
-        {tab === "tutoring" && <TutoringTab />}
-        {tab === "abuse" && <AbuseTab />}
-        {tab === "partners" && <PartnersTab />}
-        {tab === "pros" && <ProfessionalsTab />}
-        {tab === "careers" && <CareersTab />}
-        {tab === "resumes" && <ResumesTab />}
-        {tab === "events" && <EventsTab />}
-        {tab === "metrics" && <MetricsTab />}
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={gi} style={{ marginBottom: 16 }}>
+              {group.label && (
+                <div style={st.navGroupLabel}>{sidebarOpen ? group.label : ""}</div>
+              )}
+              {group.items.map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => { setTab(item.key); if (window.innerWidth <= 768) setSidebarOpen(false); }}
+                  style={{
+                    ...st.navItem,
+                    background: tab === item.key ? "rgba(232,160,32,0.12)" : "transparent",
+                    color: tab === item.key ? "#0B1D35" : "rgba(255,255,255,0.6)",
+                    fontWeight: tab === item.key ? 700 : 400,
+                    borderLeft: tab === item.key ? "3px solid #E8A020" : "3px solid transparent",
+                  }}
+                  title={item.label}
+                >
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+                  {sidebarOpen && <span>{item.label}</span>}
+                  {item.key === "review" && reviewCount > 0 && sidebarOpen && (
+                    <span style={st.navBadge}>{reviewCount}</span>
+                  )}
+                  {item.key === "review" && reviewCount > 0 && !sidebarOpen && (
+                    <div style={st.navDot} />
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        {/* Main content */}
+        <div style={st.mainContent}>
+          {tab === "metrics" && <MetricsTab />}
+          {tab === "needs" && <NeedsTab />}
+          {tab === "review" && <ReviewQueueTab />}
+          {tab === "subscribers" && <SubscribersTab />}
+          {tab === "resources" && <ResourcesTab />}
+          {tab === "tutoring" && <TutoringTab />}
+          {tab === "abuse" && <AbuseTab />}
+          {tab === "partners" && <PartnersTab />}
+          {tab === "pros" && <ProfessionalsTab />}
+          {tab === "careers" && <CareersTab />}
+          {tab === "resumes" && <ResumesTab />}
+          {tab === "events" && <EventsTab />}
+        </div>
       </div>
     </div>
   );
@@ -2456,41 +2490,53 @@ function MetricsTab() {
 const st = {
   /* Layout */
   page: {},
-  pageHeader: {
-    marginBottom: 4,
+  layoutWrap: {
+    display: "flex", minHeight: "calc(100vh - 56px)",
   },
-  pageTitle: {
-    fontFamily: "'Fraunces', serif",
-    fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 700, color: "#0B1D35", margin: 0,
+  sidebar: {
+    width: 220, flexShrink: 0,
+    background: "#0B1D35",
+    padding: "16px 0",
+    position: "sticky", top: 56, height: "calc(100vh - 56px)",
+    overflowY: "auto",
+    transition: "width 0.2s ease",
   },
-  tabBar: {
-    display: "flex", gap: 0,
-    background: "white",
-    borderRadius: 12,
-    border: "1px solid rgba(11,29,53,0.08)",
-    padding: 4,
-    marginBottom: 28,
-    overflowX: "auto",
+  sidebarCollapsed: {
+    width: 56,
   },
-  tabBtn: {
-    display: "flex", alignItems: "center", gap: 8,
-    padding: "10px 20px",
-    border: "none",
-    borderRadius: 8,
-    background: "transparent",
-    fontSize: 13, fontWeight: 600,
-    cursor: "pointer",
+  sidebarToggle: {
+    display: "none",
+    background: "none", border: "none", color: "rgba(255,255,255,0.5)",
+    fontSize: 18, cursor: "pointer", padding: "8px 16px", width: "100%", textAlign: "left",
+  },
+  navGroupLabel: {
+    fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+    letterSpacing: "0.08em", color: "rgba(255,255,255,0.3)",
+    padding: "8px 16px 4px", marginTop: 4,
+  },
+  navItem: {
+    display: "flex", alignItems: "center", gap: 10,
+    width: "100%", padding: "9px 16px",
+    border: "none", background: "transparent",
+    fontSize: 13, cursor: "pointer",
     fontFamily: "'Plus Jakarta Sans', sans-serif",
-    transition: "all 0.15s",
+    transition: "all 0.12s", textAlign: "left",
     whiteSpace: "nowrap",
   },
-  reviewBadge: {
+  navBadge: {
     background: "#D96B4A", color: "white",
     fontSize: 10, fontWeight: 700,
-    padding: "2px 7px", borderRadius: 100,
-    minWidth: 18, textAlign: "center",
+    padding: "1px 6px", borderRadius: 100,
+    marginLeft: "auto",
   },
-  content: {},
+  navDot: {
+    width: 6, height: 6, borderRadius: "50%",
+    background: "#D96B4A", position: "absolute", right: 12,
+  },
+  mainContent: {
+    flex: 1, minWidth: 0,
+    padding: "0 clamp(12px, 2vw, 24px)",
+  },
 
   /* Tab header */
   tabHeader: {

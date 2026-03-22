@@ -87,7 +87,6 @@ const styles = {
     fontFamily: "'Plus Jakarta Sans', sans-serif",
   },
   main: {
-    maxWidth: 1200, margin: "0 auto",
-    padding: "clamp(16px, 3vw, 32px) clamp(12px, 3vw, 32px) 80px",
+    padding: 0,
   },
 };
