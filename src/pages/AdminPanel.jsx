@@ -26,6 +26,7 @@ const NAV_GROUPS = [
     { key: "abuse", label: "Abuse Reports", icon: "🚩" },
   ]},
   { label: "Community", items: [
+    { key: "users", label: "Users", icon: "👤" },
     { key: "subscribers", label: "Subscribers", icon: "👥" },
     { key: "partners", label: "Partners", icon: "🏢" },
     { key: "pros", label: "Professionals", icon: "👨‍⚕️" },
@@ -116,6 +117,7 @@ export default function Admin() {
           {tab === "metrics" && <MetricsTab />}
           {tab === "needs" && <NeedsTab />}
           {tab === "review" && <ReviewQueueTab />}
+          {tab === "users" && <UsersTab />}
           {tab === "subscribers" && <SubscribersTab />}
           {tab === "resources" && <ResourcesTab />}
           {tab === "tutoring" && <TutoringTab />}
@@ -381,6 +383,211 @@ function NeedsTab() {
     </div>
   );
 }
+
+/* ═══════════════════════════════════════════════════════════════════ *
+ *  USERS TAB
+ * ═══════════════════════════════════════════════════════════════════ */
+const ALL_ROLES = ["requester", "helper", "program_volunteer", "moderator", "super_admin"];
+const ROLE_COLORS = {
+  requester: { bg: "#FFF3E0", color: "#E65100" },
+  helper: { bg: "#E8F5E9", color: "#2E7D32" },
+  program_volunteer: { bg: "#FFF8E1", color: "#F57F17" },
+  moderator: { bg: "#E3F2FD", color: "#1565C0" },
+  super_admin: { bg: "#FCE4EC", color: "#C62828" },
+};
+
+function UsersTab() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [editingUser, setEditingUser] = useState(null);
+  const [editRoles, setEditRoles] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api.get("/api/profile/admin/users")
+      .then(r => setUsers(r.data?.data || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+  useEffect(load, [load]);
+
+  const filtered = users.filter(u => {
+    const matchSearch = !search ||
+      (u.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (u.email || "").toLowerCase().includes(search.toLowerCase());
+    const matchRole = roleFilter === "all" || (u.roles || []).includes(roleFilter);
+    return matchSearch && matchRole;
+  });
+
+  const openEdit = (user) => {
+    setEditingUser(user);
+    setEditRoles([...(user.roles || [])]);
+  };
+
+  const toggleRole = (role) => {
+    setEditRoles(prev =>
+      prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
+    );
+  };
+
+  const saveRoles = async () => {
+    if (!editingUser) return;
+    setSaving(true);
+    try {
+      await api.patch(`/api/profile/admin/users/${editingUser.id}/roles`, { roles: editRoles });
+      setEditingUser(null);
+      load();
+    } catch (e) {
+      alert(e.response?.data?.error || "Failed to update roles.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={st.tabHeader}>
+        <h2 className="serif" style={st.tabTitle}>Users</h2>
+        <span style={st.badge}>{users.length}</span>
+      </div>
+
+      {/* Search + filter */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        <input
+          type="text"
+          placeholder="Search by name or email..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 200, padding: "10px 14px", borderRadius: 8, border: "1px solid rgba(11,29,53,0.12)", fontSize: 14, outline: "none", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+        />
+        <select
+          value={roleFilter}
+          onChange={e => setRoleFilter(e.target.value)}
+          style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid rgba(11,29,53,0.12)", fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: "pointer" }}
+        >
+          <option value="all">All Roles</option>
+          {ALL_ROLES.map(r => (
+            <option key={r} value={r}>{r.replace("_", " ")}</option>
+          ))}
+        </select>
+      </div>
+
+      {loading ? <Skeleton rows={5} /> : filtered.length === 0 ? <Empty msg="No users found." /> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {filtered.map(u => {
+            const roles = u.roles || [];
+            return (
+              <div key={u.id} style={{ background: "white", borderRadius: 12, padding: "16px 20px", border: "1px solid rgba(11,29,53,0.06)", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                {/* Avatar */}
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--cream)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                  {(u.full_name || "?")[0].toUpperCase()}
+                </div>
+
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <div style={{ fontWeight: 600, color: "var(--navy)", fontSize: 14 }}>{u.full_name || "No name"}</div>
+                  <div style={{ fontSize: 12, color: "var(--text-mid)" }}>{u.email}</div>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
+                    {roles.map(r => {
+                      const rc = ROLE_COLORS[r] || { bg: "#f1f5f9", color: "#6b7280" };
+                      return (
+                        <span key={r} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 100, background: rc.bg, color: rc.color, textTransform: "capitalize" }}>
+                          {r.replace("_", " ")}
+                        </span>
+                      );
+                    })}
+                    {roles.length === 0 && <span style={{ fontSize: 11, color: "var(--text-light)" }}>No roles</span>}
+                  </div>
+                </div>
+
+                {/* Capabilities */}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {u.can_donate && <span style={{ fontSize: 10, fontWeight: 600, color: "var(--sage)", background: "rgba(74,124,111,0.08)", padding: "2px 6px", borderRadius: 4 }}>Donate</span>}
+                  {u.can_deliver && <span style={{ fontSize: 10, fontWeight: 600, color: "var(--sage)", background: "rgba(74,124,111,0.08)", padding: "2px 6px", borderRadius: 4 }}>Deliver</span>}
+                  {u.can_tutor && <span style={{ fontSize: 10, fontWeight: 600, color: "var(--sage)", background: "rgba(74,124,111,0.08)", padding: "2px 6px", borderRadius: 4 }}>Tutor</span>}
+                </div>
+
+                {/* Edit button */}
+                <button
+                  onClick={() => openEdit(u)}
+                  style={{ background: "transparent", border: "1px solid rgba(11,29,53,0.12)", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 600, color: "var(--navy)", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}
+                >
+                  Edit roles
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Edit roles modal */}
+      {editingUser && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(11,29,53,0.6)", backdropFilter: "blur(4px)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={() => setEditingUser(null)}>
+          <div style={{ background: "white", borderRadius: 16, padding: "clamp(20px, 4vw, 32px)", maxWidth: 440, width: "100%", boxShadow: "0 20px 60px rgba(11,29,53,0.2)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 className="serif" style={{ fontSize: 20, fontWeight: 600, color: "var(--navy)" }}>Edit Roles</h3>
+              <button onClick={() => setEditingUser(null)} style={{ background: "none", border: "none", fontSize: 20, color: "var(--text-light)", cursor: "pointer" }}>✕</button>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontWeight: 600, color: "var(--navy)", fontSize: 15 }}>{editingUser.full_name || "No name"}</div>
+              <div style={{ fontSize: 13, color: "var(--text-mid)" }}>{editingUser.email}</div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
+              {ALL_ROLES.map(role => {
+                const active = editRoles.includes(role);
+                const rc = ROLE_COLORS[role] || { bg: "#f1f5f9", color: "#6b7280" };
+                return (
+                  <div
+                    key={role}
+                    onClick={() => toggleRole(role)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "12px 16px", borderRadius: 10, cursor: "pointer",
+                      border: active ? `1.5px solid ${rc.color}` : "1.5px solid rgba(11,29,53,0.1)",
+                      background: active ? rc.bg : "white",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <div style={{
+                      width: 20, height: 20, borderRadius: 4, flexShrink: 0,
+                      border: active ? "none" : "2px solid rgba(11,29,53,0.2)",
+                      background: active ? rc.color : "white",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 12, color: "white",
+                    }}>
+                      {active && "✓"}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--navy)", textTransform: "capitalize" }}>{role.replace("_", " ")}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-mid)" }}>
+                        {{ requester: "Can submit needs for help", helper: "Can donate items and deliver", program_volunteer: "Participates in programs (tutoring, careers)", moderator: "Can manage content and approve needs", super_admin: "Full admin access to everything" }[role]}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", gap: 12 }}>
+              <button className="btn-primary" onClick={saveRoles} disabled={saving} style={{ flex: 1, justifyContent: "center", opacity: saving ? 0.6 : 1 }}>
+                {saving ? "Saving..." : "Save Roles"}
+              </button>
+              <button className="btn-outline" onClick={() => setEditingUser(null)} style={{ flex: 1, justifyContent: "center" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════ *
  *  SUBSCRIBERS TAB
