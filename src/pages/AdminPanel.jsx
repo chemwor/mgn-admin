@@ -212,6 +212,12 @@ function NeedsTab() {
     setActionLoading("");
   };
 
+  const DONE = ["delivered", "fulfilled"];
+  const active = needs.filter(n => !DONE.includes(n.status));
+  const completed = needs.filter(n => DONE.includes(n.status));
+
+  const gridProps = { expanded, setExpanded, actionLoading, setActionLoading, updateStatus, rebroadcast, rebroadcastCooldown, rebroadcastSuccess, load };
+
   return (
     <div>
       <div style={st.tabHeader}>
@@ -227,7 +233,25 @@ function NeedsTab() {
       )}
 
       {loading ? <Skeleton rows={5} /> : needs.length === 0 ? <Empty msg="No needs yet." /> : (
-        <NeedsGrid needs={needs} expanded={expanded} setExpanded={setExpanded} actionLoading={actionLoading} setActionLoading={setActionLoading} updateStatus={updateStatus} rebroadcast={rebroadcast} rebroadcastCooldown={rebroadcastCooldown} rebroadcastSuccess={rebroadcastSuccess} load={load} />
+        <>
+          {/* Active needs */}
+          <div style={st.sectionLabel}>
+            <span>Active</span>
+            <span style={st.sectionCount}>{active.length}</span>
+          </div>
+          {active.length === 0 ? <Empty msg="No active needs." /> : (
+            <NeedsGrid needs={active} {...gridProps} />
+          )}
+
+          {/* Completed needs */}
+          <div style={{ ...st.sectionLabel, marginTop: 28 }}>
+            <span>Completed</span>
+            <span style={st.sectionCount}>{completed.length}</span>
+          </div>
+          {completed.length === 0 ? <Empty msg="No completed needs yet." /> : (
+            <NeedsGrid needs={completed} {...gridProps} />
+          )}
+        </>
       )}
     </div>
   );
@@ -3100,6 +3124,18 @@ const st = {
     fontWeight: 600, color: "var(--amber)", lineHeight: 1,
   },
   statLabel: { fontSize: 13, color: "var(--text-light)", marginTop: 4 },
+
+  /* Section labels */
+  sectionLabel: {
+    display: "flex", alignItems: "center", gap: 8,
+    fontSize: 14, fontWeight: 700, color: "var(--navy)",
+    marginBottom: 10, marginTop: 4,
+  },
+  sectionCount: {
+    fontSize: 12, fontWeight: 600, color: "var(--text-light)",
+    background: "rgba(11,29,53,0.05)", padding: "2px 8px",
+    borderRadius: 100,
+  },
 
   /* Mobile need cards */
   needCard: {
