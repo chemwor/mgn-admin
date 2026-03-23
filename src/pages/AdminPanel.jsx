@@ -1,7 +1,17 @@
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback, Fragment, useMemo } from "react";
 import api from "../lib/api";
 import PageMeta from "../components/PageMeta";
 import { useSidebar } from "../layouts/AdminLayout";
+
+function useIsMobile(breakpoint = 768) {
+  const [mobile, setMobile] = useState(window.innerWidth <= breakpoint);
+  useEffect(() => {
+    const h = () => setMobile(window.innerWidth <= breakpoint);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, [breakpoint]);
+  return mobile;
+}
 
 /* ── helpers ────────────────────────────────────────────────────────── */
 
@@ -217,188 +227,237 @@ function NeedsTab() {
       )}
 
       {loading ? <Skeleton rows={5} /> : needs.length === 0 ? <Empty msg="No needs yet." /> : (
-        <div style={st.tableWrap}>
-          <table style={st.table}>
-            <thead>
-              <tr>
-                {["Name", "Item Needed", "Category", "Zip", "Status", "Date"].map(h => (
-                  <th key={h} style={st.th}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {needs.map(n => {
-                const isOpen = expanded === n.id;
-                const sc = STATUS_COLORS[n.status] || STATUS_COLORS.open;
-                return (
-                  <Fragment key={n.id}>
-                    <tr onClick={() => setExpanded(isOpen ? null : n.id)} style={{ ...st.tr, background: isOpen ? "rgba(232,160,32,0.04)" : undefined, cursor: "pointer" }}>
-                      <td style={st.td}>{n.requester_name}</td>
-                      <td style={{ ...st.td, fontWeight: 600, color: "var(--navy)" }}>{n.item_needed}</td>
-                      <td style={st.td}>{n.category || "—"}</td>
-                      <td style={st.td}>{n.zip_code || "—"}</td>
-                      <td style={st.td}>
-                        <span style={{ ...st.statusBadge, background: sc.bg, color: sc.color }}>{n.status}</span>
-                        {n.is_flagged && <span style={st.flagBadge} title={n.flag_reason || "Flagged"}>⚠️</span>}
-                      </td>
-                      <td style={st.td}>{fmtDate(n.created_at)}</td>
-                    </tr>
-                    {isOpen && (
-                      <tr>
-                        <td colSpan={6} style={st.expandTd}>
-                          <div style={st.expandInner}>
-                            <div style={st.expandGrid}>
-                              <Detail label="Description" value={n.description} />
-                              <Detail label="Contact" value={n.contact_email} />
-                              <Detail label="Urgency" value={n.urgency} />
-                              {n.is_flagged && <Detail label="Flag" value={n.flag_reason || "Flagged"} />}
-                              <Detail label="Matched At" value={fmtDate(n.matched_at)} />
-                              <Detail label="Ready for Pickup" value={fmtDate(n.ready_for_pickup_at)} />
-                              <Detail label="Picked Up" value={fmtDate(n.picked_up_at)} />
-                              <Detail label="Delivered" value={fmtDate(n.delivered_at || n.fulfilled_at)} />
-                              {n.delivery_volunteer_name && <Detail label="Delivery Vol." value={`${n.delivery_volunteer_name} (${n.delivery_volunteer_email || ""})`} />}
-                            </div>
-
-                            {/* Donor Photo + AI Analysis */}
-                            {n.donor_photo_url && (
-                              <div style={{ marginTop: 16, padding: 16, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
-                                <div style={{ fontWeight: 700, fontSize: 13, color: "#0B1D35", marginBottom: 10 }}>Donor Photo</div>
-                                <img src={n.donor_photo_url} alt="Donor item" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, border: "1px solid #e2e8f0", marginBottom: 12 }} />
-
-                                {/* AI Photo Analysis Scores */}
-                                {n.photo_analysis && n.photo_analysis.scores && (
-                                  <div style={{ marginTop: 8 }}>
-                                    <div style={{ fontWeight: 700, fontSize: 12, color: "#0B1D35", marginBottom: 8 }}>AI Photo Analysis</div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                      {Object.entries(n.photo_analysis.scores).map(([k, v]) => {
-                                        const c = v >= 70 ? "#4A7C6F" : v >= 50 ? "#E8A020" : "#D96B4A";
-                                        return (
-                                          <div key={k}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                                              <span style={{ fontSize: 12, color: "#6b7280", textTransform: "capitalize" }}>{k.replace(/_/g, " ")}</span>
-                                              <span style={{ fontSize: 12, fontWeight: 700, color: c }}>{v}</span>
-                                            </div>
-                                            <div style={{ height: 5, background: "#e2e8f0", borderRadius: 3, overflow: "hidden" }}>
-                                              <div style={{ height: "100%", width: `${Math.min(v, 100)}%`, background: c, borderRadius: 3 }} />
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                    {n.photo_analysis.recommendation && (
-                                      <div style={{
-                                        marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5,
-                                        padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
-                                        background: n.photo_analysis.recommendation === "auto_approve" ? "rgba(74,124,111,0.1)" : n.photo_analysis.recommendation === "reject" ? "rgba(217,107,74,0.1)" : "rgba(232,160,32,0.1)",
-                                        color: n.photo_analysis.recommendation === "auto_approve" ? "#4A7C6F" : n.photo_analysis.recommendation === "reject" ? "#D96B4A" : "#C8851A",
-                                      }}>
-                                        {n.photo_analysis.recommendation === "auto_approve" ? "✓ Auto-Approved" : n.photo_analysis.recommendation === "reject" ? "✗ Reject Recommended" : "⚠ Manual Review"}
-                                      </div>
-                                    )}
-                                    {n.photo_analysis.summary && (
-                                      <p style={{ fontSize: 12, color: "#6b7280", fontStyle: "italic", marginTop: 6, lineHeight: 1.5 }}>{n.photo_analysis.summary}</p>
-                                    )}
-                                    {n.photo_analysis.flags && n.photo_analysis.flags.length > 0 && (
-                                      <div style={{ marginTop: 6, fontSize: 12, color: "#92400E" }}>
-                                        Flags: {n.photo_analysis.flags.join(", ")}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* Approve / Reject Photo buttons — only for matched status */}
-                                {n.status === "matched" && (
-                                  <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-                                    <button
-                                      className="btn-primary"
-                                      style={{ ...st.actionBtn, background: "#4A7C6F" }}
-                                      disabled={!!actionLoading}
-                                      onClick={async () => {
-                                        setActionLoading(n.id + "approve-photo");
-                                        try {
-                                          await api.post(`/api/needs/${n.id}/approve-photo`, {});
-                                          load();
-                                        } catch { /* silent */ }
-                                        setActionLoading("");
-                                      }}
-                                    >
-                                      {actionLoading === n.id + "approve-photo" ? "Approving..." : "Approve & Send to Delivery"}
-                                    </button>
-                                    <button
-                                      style={{ ...st.actionBtn, background: "transparent", color: "#D96B4A", border: "1.5px solid #D96B4A", borderRadius: 8 }}
-                                      disabled={!!actionLoading}
-                                      onClick={async () => {
-                                        const adminNote = window.prompt("Add a note for the donor (optional — AI analysis reason will be included automatically):");
-                                        if (adminNote === null) return;
-                                        setActionLoading(n.id + "reject-photo");
-                                        try {
-                                          await api.post(`/api/needs/${n.id}/reject-photo`, { reason: adminNote || "" });
-                                          load();
-                                        } catch { /* silent */ }
-                                        setActionLoading("");
-                                      }}
-                                    >
-                                      {actionLoading === n.id + "reject-photo" ? "Rejecting..." : "Reject & Reopen"}
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            <div style={st.expandActions}>
-                              {n.status === "open" && (
-                                <button className="btn-amber" style={st.actionBtn} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "matched")}>
-                                  {actionLoading === n.id + "matched" ? "..." : "Mark Matched"}
-                                </button>
-                              )}
-                              {n.status === "ready_for_pickup" && (
-                                <button className="btn-amber" style={st.actionBtn} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "picked_up")}>
-                                  {actionLoading === n.id + "picked_up" ? "..." : "Mark Picked Up"}
-                                </button>
-                              )}
-                              {n.status === "picked_up" && (
-                                <button className="btn-primary" style={{ ...st.actionBtn, background: "var(--sage)" }} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "delivered")}>
-                                  {actionLoading === n.id + "delivered" ? "..." : "Mark Delivered"}
-                                </button>
-                              )}
-                              {n.status !== "delivered" && n.status !== "fulfilled" && (
-                                <button className="btn-primary" style={{ ...st.actionBtn, background: "var(--sage)" }} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "delivered")}>
-                                  {actionLoading === n.id + "delivered" ? "..." : "Mark Delivered"}
-                                </button>
-                              )}
-                              {(n.status === "open" || n.status === "ready_for_pickup") && (
-                                rebroadcastCooldown[n.id] ? (
-                                  <button style={{ ...st.actionBtn, ...st.rebroadcastBtnDisabled }} disabled title={rebroadcastCooldown[n.id]}>
-                                    Recently Broadcast
-                                  </button>
-                                ) : rebroadcastSuccess[n.id] ? (
-                                  <span style={{ ...st.actionBtn, color: "var(--sage)", fontWeight: 600, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                    ✓ Rebroadcast sent successfully
-                                  </span>
-                                ) : (
-                                  <button
-                                    style={{ ...st.actionBtn, ...st.rebroadcastBtn }}
-                                    disabled={!!actionLoading}
-                                    onClick={() => rebroadcast(n.id, n.status)}
-                                  >
-                                    {actionLoading === n.id + "rebroadcast" ? "Sending..." :
-                                      n.status === "ready_for_pickup" ? "Resend to Delivery Volunteers" : "Resend to Donors"}
-                                  </button>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <NeedsGrid needs={needs} expanded={expanded} setExpanded={setExpanded} actionLoading={actionLoading} setActionLoading={setActionLoading} updateStatus={updateStatus} rebroadcast={rebroadcast} rebroadcastCooldown={rebroadcastCooldown} rebroadcastSuccess={rebroadcastSuccess} load={load} />
       )}
     </div>
+  );
+}
+
+function NeedsGrid({ needs, expanded, setExpanded, actionLoading, setActionLoading, updateStatus, rebroadcast, rebroadcastCooldown, rebroadcastSuccess, load }) {
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {needs.map(n => {
+          const isOpen = expanded === n.id;
+          const sc = STATUS_COLORS[n.status] || STATUS_COLORS.open;
+          return (
+            <div key={n.id} style={st.needCard}>
+              <div onClick={() => setExpanded(isOpen ? null : n.id)} style={st.needCardHeader}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: "var(--navy)", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.item_needed}</div>
+                  <div style={{ fontSize: 13, color: "var(--text-mid)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <span>{n.requester_name}</span>
+                    {n.category && <><span style={{ color: "var(--text-light)" }}>·</span><span>{n.category}</span></>}
+                    {n.zip_code && <><span style={{ color: "var(--text-light)" }}>·</span><span>{n.zip_code}</span></>}
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                  <span style={{ ...st.statusBadge, background: sc.bg, color: sc.color }}>{n.status}</span>
+                  <span style={{ fontSize: 12, color: "var(--text-light)" }}>{fmtDate(n.created_at)}</span>
+                </div>
+              </div>
+              {n.is_flagged && <div style={{ padding: "0 14px 8px", fontSize: 12, color: "#C8851A" }}>⚠️ {n.flag_reason || "Flagged"}</div>}
+              {isOpen && (
+                <div style={{ padding: "12px 14px 14px", borderTop: "1px solid rgba(11,29,53,0.06)" }}>
+                  <NeedExpandedContent n={n} actionLoading={actionLoading} setActionLoading={setActionLoading} updateStatus={updateStatus} rebroadcast={rebroadcast} rebroadcastCooldown={rebroadcastCooldown} rebroadcastSuccess={rebroadcastSuccess} load={load} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div style={st.tableWrap}>
+      <table style={st.table}>
+        <thead>
+          <tr>
+            {["Name", "Item Needed", "Category", "Zip", "Status", "Date"].map(h => (
+              <th key={h} style={st.th}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {needs.map(n => {
+            const isOpen = expanded === n.id;
+            const sc = STATUS_COLORS[n.status] || STATUS_COLORS.open;
+            return (
+              <Fragment key={n.id}>
+                <tr onClick={() => setExpanded(isOpen ? null : n.id)} style={{ ...st.tr, background: isOpen ? "rgba(232,160,32,0.04)" : undefined, cursor: "pointer" }}>
+                  <td style={st.td}>{n.requester_name}</td>
+                  <td style={{ ...st.td, fontWeight: 600, color: "var(--navy)" }}>{n.item_needed}</td>
+                  <td style={st.td}>{n.category || "—"}</td>
+                  <td style={st.td}>{n.zip_code || "—"}</td>
+                  <td style={st.td}>
+                    <span style={{ ...st.statusBadge, background: sc.bg, color: sc.color }}>{n.status}</span>
+                    {n.is_flagged && <span style={st.flagBadge} title={n.flag_reason || "Flagged"}>⚠️</span>}
+                  </td>
+                  <td style={st.td}>{fmtDate(n.created_at)}</td>
+                </tr>
+                {isOpen && (
+                  <tr>
+                    <td colSpan={6} style={st.expandTd}>
+                      <div style={st.expandInner}>
+                        <NeedExpandedContent n={n} actionLoading={actionLoading} setActionLoading={setActionLoading} updateStatus={updateStatus} rebroadcast={rebroadcast} rebroadcastCooldown={rebroadcastCooldown} rebroadcastSuccess={rebroadcastSuccess} load={load} />
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+function NeedExpandedContent({ n, actionLoading, setActionLoading, updateStatus, rebroadcast, rebroadcastCooldown, rebroadcastSuccess, load }) {
+  return (
+    <>
+      <div style={st.expandGrid}>
+        <Detail label="Description" value={n.description} />
+        <Detail label="Contact" value={n.contact_email} />
+        <Detail label="Urgency" value={n.urgency} />
+        {n.is_flagged && <Detail label="Flag" value={n.flag_reason || "Flagged"} />}
+        <Detail label="Matched At" value={fmtDate(n.matched_at)} />
+        <Detail label="Ready for Pickup" value={fmtDate(n.ready_for_pickup_at)} />
+        <Detail label="Picked Up" value={fmtDate(n.picked_up_at)} />
+        <Detail label="Delivered" value={fmtDate(n.delivered_at || n.fulfilled_at)} />
+        {n.delivery_volunteer_name && <Detail label="Delivery Vol." value={`${n.delivery_volunteer_name} (${n.delivery_volunteer_email || ""})`} />}
+      </div>
+
+      {/* Donor Photo + AI Analysis */}
+      {n.donor_photo_url && (
+        <div style={{ marginTop: 16, padding: 16, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#0B1D35", marginBottom: 10 }}>Donor Photo</div>
+          <img src={n.donor_photo_url} alt="Donor item" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, border: "1px solid #e2e8f0", marginBottom: 12 }} />
+
+          {n.photo_analysis && n.photo_analysis.scores && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 12, color: "#0B1D35", marginBottom: 8 }}>AI Photo Analysis</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {Object.entries(n.photo_analysis.scores).map(([k, v]) => {
+                  const c = v >= 70 ? "#4A7C6F" : v >= 50 ? "#E8A020" : "#D96B4A";
+                  return (
+                    <div key={k}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                        <span style={{ fontSize: 12, color: "#6b7280", textTransform: "capitalize" }}>{k.replace(/_/g, " ")}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: c }}>{v}</span>
+                      </div>
+                      <div style={{ height: 5, background: "#e2e8f0", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${Math.min(v, 100)}%`, background: c, borderRadius: 3 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {n.photo_analysis.recommendation && (
+                <div style={{
+                  marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  background: n.photo_analysis.recommendation === "auto_approve" ? "rgba(74,124,111,0.1)" : n.photo_analysis.recommendation === "reject" ? "rgba(217,107,74,0.1)" : "rgba(232,160,32,0.1)",
+                  color: n.photo_analysis.recommendation === "auto_approve" ? "#4A7C6F" : n.photo_analysis.recommendation === "reject" ? "#D96B4A" : "#C8851A",
+                }}>
+                  {n.photo_analysis.recommendation === "auto_approve" ? "✓ Auto-Approved" : n.photo_analysis.recommendation === "reject" ? "✗ Reject Recommended" : "⚠ Manual Review"}
+                </div>
+              )}
+              {n.photo_analysis.summary && (
+                <p style={{ fontSize: 12, color: "#6b7280", fontStyle: "italic", marginTop: 6, lineHeight: 1.5 }}>{n.photo_analysis.summary}</p>
+              )}
+              {n.photo_analysis.flags && n.photo_analysis.flags.length > 0 && (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#92400E" }}>
+                  Flags: {n.photo_analysis.flags.join(", ")}
+                </div>
+              )}
+            </div>
+          )}
+
+          {n.status === "matched" && (
+            <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+              <button
+                className="btn-primary"
+                style={{ ...st.actionBtn, background: "#4A7C6F" }}
+                disabled={!!actionLoading}
+                onClick={async () => {
+                  setActionLoading(n.id + "approve-photo");
+                  try {
+                    await api.post(`/api/needs/${n.id}/approve-photo`, {});
+                    load();
+                  } catch { /* silent */ }
+                  setActionLoading("");
+                }}
+              >
+                {actionLoading === n.id + "approve-photo" ? "Approving..." : "Approve & Send to Delivery"}
+              </button>
+              <button
+                style={{ ...st.actionBtn, background: "transparent", color: "#D96B4A", border: "1.5px solid #D96B4A", borderRadius: 8 }}
+                disabled={!!actionLoading}
+                onClick={async () => {
+                  const adminNote = window.prompt("Add a note for the donor (optional — AI analysis reason will be included automatically):");
+                  if (adminNote === null) return;
+                  setActionLoading(n.id + "reject-photo");
+                  try {
+                    await api.post(`/api/needs/${n.id}/reject-photo`, { reason: adminNote || "" });
+                    load();
+                  } catch { /* silent */ }
+                  setActionLoading("");
+                }}
+              >
+                {actionLoading === n.id + "reject-photo" ? "Rejecting..." : "Reject & Reopen"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={st.expandActions}>
+        {n.status === "open" && (
+          <button className="btn-amber" style={st.actionBtn} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "matched")}>
+            {actionLoading === n.id + "matched" ? "..." : "Mark Matched"}
+          </button>
+        )}
+        {n.status === "ready_for_pickup" && (
+          <button className="btn-amber" style={st.actionBtn} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "picked_up")}>
+            {actionLoading === n.id + "picked_up" ? "..." : "Mark Picked Up"}
+          </button>
+        )}
+        {n.status === "picked_up" && (
+          <button className="btn-primary" style={{ ...st.actionBtn, background: "var(--sage)" }} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "delivered")}>
+            {actionLoading === n.id + "delivered" ? "..." : "Mark Delivered"}
+          </button>
+        )}
+        {n.status !== "delivered" && n.status !== "fulfilled" && (
+          <button className="btn-primary" style={{ ...st.actionBtn, background: "var(--sage)" }} disabled={!!actionLoading} onClick={() => updateStatus(n.id, "delivered")}>
+            {actionLoading === n.id + "delivered" ? "..." : "Mark Delivered"}
+          </button>
+        )}
+        {(n.status === "open" || n.status === "ready_for_pickup") && (
+          rebroadcastCooldown[n.id] ? (
+            <button style={{ ...st.actionBtn, ...st.rebroadcastBtnDisabled }} disabled title={rebroadcastCooldown[n.id]}>
+              Recently Broadcast
+            </button>
+          ) : rebroadcastSuccess[n.id] ? (
+            <span style={{ ...st.actionBtn, color: "var(--sage)", fontWeight: 600, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 4 }}>
+              ✓ Rebroadcast sent successfully
+            </span>
+          ) : (
+            <button
+              style={{ ...st.actionBtn, ...st.rebroadcastBtn }}
+              disabled={!!actionLoading}
+              onClick={() => rebroadcast(n.id, n.status)}
+            >
+              {actionLoading === n.id + "rebroadcast" ? "Sending..." :
+                n.status === "ready_for_pickup" ? "Resend to Delivery Volunteers" : "Resend to Donors"}
+            </button>
+          )
+        )}
+      </div>
+    </>
   );
 }
 
@@ -3041,6 +3100,17 @@ const st = {
     fontWeight: 600, color: "var(--amber)", lineHeight: 1,
   },
   statLabel: { fontSize: 13, color: "var(--text-light)", marginTop: 4 },
+
+  /* Mobile need cards */
+  needCard: {
+    background: "white", borderRadius: 12,
+    border: "1px solid rgba(11,29,53,0.06)",
+    overflow: "hidden",
+  },
+  needCardHeader: {
+    display: "flex", alignItems: "flex-start", gap: 12,
+    padding: "14px 14px", cursor: "pointer",
+  },
 
   /* Table */
   tableWrap: {
