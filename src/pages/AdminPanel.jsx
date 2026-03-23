@@ -3007,7 +3007,7 @@ const st = {
   },
   mainContent: {
     flex: 1, minWidth: 0,
-    padding: "0 clamp(12px, 2vw, 24px)",
+    padding: "20px clamp(12px, 2vw, 24px)",
   },
 
   /* Tab header */
