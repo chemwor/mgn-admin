@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, Fragment } from "react";
 import api from "../lib/api";
 import PageMeta from "../components/PageMeta";
+import { useSidebar } from "../layouts/AdminLayout";
 
 /* ── helpers ────────────────────────────────────────────────────────── */
 
@@ -51,7 +52,7 @@ const RESOURCE_INIT = { name: "", category: "", description: "", address: "", ci
 export default function Admin() {
   const [tab, setTab] = useState("metrics");
   const [reviewCount, setReviewCount] = useState(0);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { open: sidebarOpen, setOpen: setSidebarOpen, displayName, handleSignOut } = useSidebar();
 
   useEffect(() => {
     Promise.all([
@@ -63,26 +64,13 @@ export default function Admin() {
     ]).then(([needReview, photoReview]) => setReviewCount(needReview + photoReview));
   }, [tab]);
 
-  // Collapse sidebar on mobile
-  useEffect(() => {
-    const check = () => setSidebarOpen(window.innerWidth > 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-
   return (
     <div style={st.page}>
       <PageMeta title="Admin Panel" />
 
       <div style={st.layoutWrap}>
-        {/* Mobile menu button — fixed at top */}
-        <button data-mobile-menu-btn onClick={() => setSidebarOpen(!sidebarOpen)} style={st.mobileMenuBtn}>
-          ☰
-        </button>
-
         {/* Overlay for mobile */}
-        {sidebarOpen && window.innerWidth <= 768 && (
+        {sidebarOpen && typeof window !== "undefined" && window.innerWidth <= 768 && (
           <div onClick={() => setSidebarOpen(false)} style={st.sidebarOverlay} />
         )}
 
@@ -91,10 +79,6 @@ export default function Admin() {
           ...st.sidebar,
           ...(sidebarOpen ? {} : st.sidebarHidden),
         }}>
-          {/* Close button inside sidebar on mobile */}
-          <button data-sidebar-close onClick={() => setSidebarOpen(false)} style={st.sidebarCloseBtn}>
-            ✕
-          </button>
 
           {NAV_GROUPS.map((group, gi) => (
             <div key={gi} style={{ marginBottom: 16 }}>
@@ -126,6 +110,23 @@ export default function Admin() {
               ))}
             </div>
           ))}
+
+          {/* Bottom section — user info + links (visible on mobile sidebar) */}
+          {sidebarOpen && (
+            <div style={st.sidebarBottom}>
+              <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.7)", padding: "0 16px", marginBottom: 8 }}>
+                  {displayName}
+                </div>
+                <a href="https://myguardianneighbor.com" style={st.sidebarLink}>
+                  ← Main site
+                </a>
+                <button onClick={handleSignOut} style={st.sidebarLink}>
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
         </nav>
 
         {/* Main content */}
@@ -2959,6 +2960,7 @@ const st = {
     overflowY: "auto",
     transition: "transform 0.25s ease, width 0.25s ease",
     zIndex: 40,
+    display: "flex", flexDirection: "column",
   },
   sidebarHidden: {
     // Desktop: collapse to icons
@@ -2968,19 +2970,16 @@ const st = {
     position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
     zIndex: 35,
   },
-  mobileMenuBtn: {
-    display: "none", // shown via CSS media query
-    position: "fixed", top: 64, left: 8, zIndex: 30,
-    width: 36, height: 36, borderRadius: 8,
-    background: "#0B1D35", color: "white", border: "none",
-    fontSize: 18, cursor: "pointer",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-    alignItems: "center", justifyContent: "center",
+  sidebarBottom: {
+    marginTop: "auto", padding: "16px 0",
   },
-  sidebarCloseBtn: {
-    display: "none", // shown via CSS media query
-    background: "none", border: "none", color: "rgba(255,255,255,0.5)",
-    fontSize: 20, cursor: "pointer", padding: "8px 16px", width: "100%", textAlign: "right",
+  sidebarLink: {
+    display: "block", width: "100%", textAlign: "left",
+    padding: "8px 16px", background: "none", border: "none",
+    color: "rgba(255,255,255,0.5)", fontSize: 13,
+    cursor: "pointer", textDecoration: "none",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    transition: "color 0.15s",
   },
   navGroupLabel: {
     fontSize: 10, fontWeight: 700, textTransform: "uppercase",
