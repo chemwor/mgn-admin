@@ -64,16 +64,30 @@ input:focus, select:focus, textarea:focus {
   outline: none;
 }
 
-/* Sidebar mobile */
+/* Sidebar mobile — uses data attributes for targeting */
 @media (max-width: 768px) {
-  .admin-sidebar {
+  [data-mobile-menu-btn] {
+    display: flex !important;
+  }
+  [data-sidebar-close] {
+    display: block !important;
+  }
+  [data-sidebar] {
     position: fixed !important;
     left: 0; top: 56px;
-    z-index: 50;
     height: calc(100vh - 56px) !important;
+    width: 240px !important;
+    z-index: 40;
+    transform: translateX(0);
+    box-shadow: 4px 0 20px rgba(0,0,0,0.3);
   }
-  .admin-sidebar-toggle {
-    display: block !important;
+  [data-sidebar][data-hidden] {
+    transform: translateX(-100%) !important;
+    width: 240px !important;
+  }
+  [data-main-content] {
+    padding-left: 8px !important;
+    padding-top: 48px !important;
   }
 }
 

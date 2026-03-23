@@ -76,11 +76,24 @@ export default function Admin() {
       <PageMeta title="Admin Panel" />
 
       <div style={st.layoutWrap}>
+        {/* Mobile menu button — fixed at top */}
+        <button data-mobile-menu-btn onClick={() => setSidebarOpen(!sidebarOpen)} style={st.mobileMenuBtn}>
+          ☰
+        </button>
+
+        {/* Overlay for mobile */}
+        {sidebarOpen && window.innerWidth <= 768 && (
+          <div onClick={() => setSidebarOpen(false)} style={st.sidebarOverlay} />
+        )}
+
         {/* Sidebar */}
-        <nav style={{ ...st.sidebar, ...(sidebarOpen ? {} : st.sidebarCollapsed) }}>
-          {/* Mobile toggle */}
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} style={st.sidebarToggle}>
-            {sidebarOpen ? "✕" : "☰"}
+        <nav data-sidebar {...(!sidebarOpen ? {"data-hidden": ""} : {})} style={{
+          ...st.sidebar,
+          ...(sidebarOpen ? {} : st.sidebarHidden),
+        }}>
+          {/* Close button inside sidebar on mobile */}
+          <button data-sidebar-close onClick={() => setSidebarOpen(false)} style={st.sidebarCloseBtn}>
+            ✕
           </button>
 
           {NAV_GROUPS.map((group, gi) => (
@@ -116,7 +129,7 @@ export default function Admin() {
         </nav>
 
         {/* Main content */}
-        <div style={st.mainContent}>
+        <div data-main-content style={st.mainContent}>
           {tab === "metrics" && <MetricsTab />}
           {tab === "needs" && <NeedsTab />}
           {tab === "review" && <ReviewQueueTab />}
@@ -2936,6 +2949,7 @@ const st = {
   page: {},
   layoutWrap: {
     display: "flex", minHeight: "calc(100vh - 56px)",
+    position: "relative",
   },
   sidebar: {
     width: 220, flexShrink: 0,
@@ -2943,15 +2957,30 @@ const st = {
     padding: "16px 0",
     position: "sticky", top: 56, height: "calc(100vh - 56px)",
     overflowY: "auto",
-    transition: "width 0.2s ease",
+    transition: "transform 0.25s ease, width 0.25s ease",
+    zIndex: 40,
   },
-  sidebarCollapsed: {
+  sidebarHidden: {
+    // Desktop: collapse to icons
     width: 56,
   },
-  sidebarToggle: {
-    display: "none",
+  sidebarOverlay: {
+    position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
+    zIndex: 35,
+  },
+  mobileMenuBtn: {
+    display: "none", // shown via CSS media query
+    position: "fixed", top: 64, left: 8, zIndex: 30,
+    width: 36, height: 36, borderRadius: 8,
+    background: "#0B1D35", color: "white", border: "none",
+    fontSize: 18, cursor: "pointer",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+    alignItems: "center", justifyContent: "center",
+  },
+  sidebarCloseBtn: {
+    display: "none", // shown via CSS media query
     background: "none", border: "none", color: "rgba(255,255,255,0.5)",
-    fontSize: 18, cursor: "pointer", padding: "8px 16px", width: "100%", textAlign: "left",
+    fontSize: 20, cursor: "pointer", padding: "8px 16px", width: "100%", textAlign: "right",
   },
   navGroupLabel: {
     fontSize: 10, fontWeight: 700, textTransform: "uppercase",
