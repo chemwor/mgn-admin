@@ -2808,27 +2808,27 @@ function MetricsTab() {
 
       {/* ── TODAY ── */}
       <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>Today</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 12, marginBottom: 28 }}>
-        <div style={{ background: "white", borderRadius: 12, padding: 20, border: "1px solid rgba(11,29,53,0.06)", textAlign: "center" }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>📋</div>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 600, color: "var(--navy)" }}>{data.needs_today}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 28 }}>
+        <div style={{ background: "white", borderRadius: 12, padding: "clamp(12px, 3vw, 20px)", border: "1px solid rgba(11,29,53,0.06)", textAlign: "center" }}>
+          <div style={{ fontSize: "clamp(18px, 3vw, 24px)", marginBottom: 6 }}>📋</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: "clamp(22px, 4vw, 28px)", fontWeight: 600, color: "var(--navy)" }}>{data.needs_today}</div>
           <div style={{ fontSize: 12, color: "var(--text-mid)", fontWeight: 500, marginTop: 4 }}>Needs Submitted</div>
           {data.needs_today === 0 && <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--text-light)", marginTop: 4 }}>Check back after outreach goes live</div>}
         </div>
-        <div style={{ background: "white", borderRadius: 12, padding: 20, border: "1px solid rgba(11,29,53,0.06)", textAlign: "center" }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>👤</div>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 600, color: "var(--navy)" }}>{data.new_accounts_today}</div>
+        <div style={{ background: "white", borderRadius: 12, padding: "clamp(12px, 3vw, 20px)", border: "1px solid rgba(11,29,53,0.06)", textAlign: "center" }}>
+          <div style={{ fontSize: "clamp(18px, 3vw, 24px)", marginBottom: 6 }}>👤</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: "clamp(22px, 4vw, 28px)", fontWeight: 600, color: "var(--navy)" }}>{data.new_accounts_today}</div>
           <div style={{ fontSize: 12, color: "var(--text-mid)", fontWeight: 500, marginTop: 4 }}>New Accounts</div>
           {data.new_accounts_today === 0 && <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--text-light)", marginTop: 4 }}>Will grow as users discover MGN</div>}
         </div>
-        <div style={{ background: "white", borderRadius: 12, padding: 20, border: "1px solid rgba(11,29,53,0.06)", textAlign: "center" }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>🤖</div>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 600, color: "var(--navy)" }}>{data.ai_usage_today?.total || 0}</div>
+        <div style={{ background: "white", borderRadius: 12, padding: "clamp(12px, 3vw, 20px)", border: "1px solid rgba(11,29,53,0.06)", textAlign: "center" }}>
+          <div style={{ fontSize: "clamp(18px, 3vw, 24px)", marginBottom: 6 }}>🤖</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: "clamp(22px, 4vw, 28px)", fontWeight: 600, color: "var(--navy)" }}>{data.ai_usage_today?.total || 0}</div>
           <div style={{ fontSize: 12, color: "var(--text-mid)", fontWeight: 500, marginTop: 4 }}>AI Calls</div>
           {(data.ai_usage_today?.total || 0) === 0 && <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--text-light)", marginTop: 4 }}>AI moderation runs on each submission</div>}
         </div>
         <div style={{ background: stuckCount > 0 ? "#FEF3DC" : "white", borderRadius: 12, padding: 20, border: stuckCount > 0 ? "1px solid #E8A020" : "1px solid rgba(11,29,53,0.06)", textAlign: "center", cursor: stuckCount > 0 ? "pointer" : "default" }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>⚠️</div>
+          <div style={{ fontSize: "clamp(18px, 3vw, 24px)", marginBottom: 6 }}>⚠️</div>
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, fontWeight: 600, color: stuckCount > 0 ? "#D96B4A" : "var(--sage)" }}>{stuckCount}</div>
           <div style={{ fontSize: 12, color: stuckCount > 0 ? "#92400E" : "var(--text-mid)", fontWeight: 500, marginTop: 4 }}>Stuck 48h+</div>
           {stuckCount > 0 && <div style={{ fontSize: 11, fontWeight: 500, color: "#92400E", marginTop: 4 }}>Action required →</div>}

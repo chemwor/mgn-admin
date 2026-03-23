@@ -80,10 +80,17 @@ input:focus, select:focus, textarea:focus {
     width: 240px !important;
   }
   [data-main-content] {
-    padding-left: 8px !important;
+    padding: 16px 12px !important;
   }
   [data-header-right] {
     display: none !important;
+  }
+}
+
+/* Admin dashboard mobile tweaks */
+@media (max-width: 480px) {
+  [data-main-content] {
+    padding: 12px 8px !important;
   }
 }
 
