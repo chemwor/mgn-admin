@@ -51,6 +51,10 @@ const NAV_GROUPS = [
   { label: "Content", items: [
     { key: "resources", label: "Resources", icon: "📋" },
   ]},
+  { label: "Growth", items: [
+    { key: "scraper", label: "Reddit Leads", icon: "🔍" },
+    { key: "scraper-config", label: "Scraper Config", icon: "⚙️" },
+  ]},
   { label: null, items: [
     { key: "feedback", label: "Feedback", icon: "💬" },
   ]},
@@ -155,6 +159,8 @@ export default function Admin() {
           {tab === "resumes" && <ResumesTab />}
           {tab === "events" && <EventsTab />}
           {tab === "feedback" && <FeedbackTab />}
+          {tab === "scraper" && <ScraperLeadsTab />}
+          {tab === "scraper-config" && <ScraperConfigTab />}
         </div>
       </div>
     </div>
@@ -2624,6 +2630,412 @@ function EventsTab() {
             )}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════ *
+ *  SCRAPER LEADS TAB
+ * ═══════════════════════════════════════════════════════════════════ */
+function ScraperLeadsTab() {
+  const [leads, setLeads] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [expandedNotes, setExpandedNotes] = useState(null);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [actionLoading, setActionLoading] = useState("");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (statusFilter) params.set("status", statusFilter);
+    if (typeFilter) params.set("type", typeFilter);
+    params.set("page", page);
+    api.get(`/api/admin/scraper/leads?${params}`)
+      .then(r => {
+        setLeads(r.data?.data?.leads || []);
+        setTotal(r.data?.data?.total || 0);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [statusFilter, typeFilter, page]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const updateLead = async (id, updates) => {
+    setActionLoading(id);
+    try {
+      await api.patch(`/api/admin/scraper/leads/${id}`, updates);
+      load();
+    } catch { /* silent */ }
+    setActionLoading("");
+  };
+
+  const saveNotes = async (id) => {
+    await updateLead(id, { notes: notesDraft });
+    setExpandedNotes(null);
+  };
+
+  const perPage = 50;
+  const totalPages = Math.ceil(total / perPage);
+
+  const typeBadge = (type) => ({
+    fontSize: 11, fontWeight: 700, letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    padding: "4px 10px", borderRadius: 100,
+    display: "inline-block",
+    background: type === "need" ? "rgba(217,107,74,0.12)" : "rgba(74,124,111,0.12)",
+    color: type === "need" ? "#D96B4A" : "#4A7C6F",
+  });
+
+  const statusBadgeStyle = (s) => ({
+    fontSize: 11, fontWeight: 700, letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    padding: "4px 10px", borderRadius: 100,
+    display: "inline-block",
+    background: s === "new" ? "rgba(232,160,32,0.12)" : s === "contacted" ? "rgba(74,124,111,0.12)" : "rgba(11,29,53,0.06)",
+    color: s === "new" ? "#C8851A" : s === "contacted" ? "#4A7C6F" : "#6B7280",
+  });
+
+  const filterBtnStyle = (active) => ({
+    ...st.filterToggleBtn,
+    background: active ? "#0B1D35" : "transparent",
+    color: active ? "white" : "#6B7280",
+    borderColor: active ? "#0B1D35" : "rgba(11,29,53,0.15)",
+  });
+
+  return (
+    <div>
+      <div style={st.tabHeader}>
+        <h2 style={st.tabTitle}>Reddit Leads</h2>
+        <span style={st.badge}>{total}</span>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-light)", alignSelf: "center", marginRight: 4 }}>Type:</span>
+        {[["", "All"], ["need", "Need"], ["volunteer", "Volunteer"]].map(([v, l]) => (
+          <button key={v} onClick={() => { setTypeFilter(v); setPage(1); }} style={filterBtnStyle(typeFilter === v)}>{l}</button>
+        ))}
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-light)", alignSelf: "center", marginLeft: 12, marginRight: 4 }}>Status:</span>
+        {[["", "All"], ["new", "New"], ["contacted", "Contacted"], ["skipped", "Skipped"]].map(([v, l]) => (
+          <button key={v} onClick={() => { setStatusFilter(v); setPage(1); }} style={filterBtnStyle(statusFilter === v)}>{l}</button>
+        ))}
+      </div>
+
+      {loading ? (
+        <Skeleton rows={6} />
+      ) : leads.length === 0 ? (
+        <Empty msg="No leads match your filters." />
+      ) : (
+        <>
+          <div style={{ overflowX: "auto" }}>
+            <table style={st.table}>
+              <thead>
+                <tr>
+                  <th style={st.th}>Type</th>
+                  <th style={st.th}>Subreddit</th>
+                  <th style={st.th}>Title</th>
+                  <th style={st.th}>Author</th>
+                  <th style={st.th}>Flagged</th>
+                  <th style={st.th}>Status</th>
+                  <th style={st.th}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leads.map(lead => (
+                  <Fragment key={lead.id}>
+                    <tr style={st.tr}>
+                      <td style={st.td}><span style={typeBadge(lead.lead_type)}>{lead.lead_type}</span></td>
+                      <td style={{ ...st.td, fontSize: 13 }}>r/{lead.subreddit}</td>
+                      <td style={{ ...st.td, maxWidth: 300 }}>
+                        <a href={lead.url} target="_blank" rel="noopener noreferrer" style={{ color: "#0B1D35", fontWeight: 600, textDecoration: "none" }}>
+                          {lead.title?.length > 70 ? lead.title.slice(0, 70) + "..." : lead.title}
+                        </a>
+                      </td>
+                      <td style={{ ...st.td, fontSize: 13 }}>u/{lead.author}</td>
+                      <td style={{ ...st.td, fontSize: 12 }}>{fmtDate(lead.flagged_at)}</td>
+                      <td style={st.td}><span style={statusBadgeStyle(lead.status)}>{lead.status}</span></td>
+                      <td style={st.td}>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                          {lead.status !== "contacted" && (
+                            <button
+                              onClick={() => updateLead(lead.id, { status: "contacted" })}
+                              disabled={actionLoading === lead.id}
+                              style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: "1.5px solid #4A7C6F", background: "transparent", color: "#4A7C6F", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                            >
+                              Contacted
+                            </button>
+                          )}
+                          {lead.status !== "skipped" && (
+                            <button
+                              onClick={() => updateLead(lead.id, { status: "skipped" })}
+                              disabled={actionLoading === lead.id}
+                              style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: "1.5px solid #6B7280", background: "transparent", color: "#6B7280", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                            >
+                              Skip
+                            </button>
+                          )}
+                          <button
+                            onClick={() => { setExpandedNotes(expandedNotes === lead.id ? null : lead.id); setNotesDraft(lead.notes || ""); }}
+                            style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: "1.5px solid var(--amber)", background: "transparent", color: "var(--amber)", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                          >
+                            {lead.notes ? "Edit Note" : "Add Note"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedNotes === lead.id && (
+                      <tr>
+                        <td colSpan={7} style={st.expandTd}>
+                          <div style={{ ...st.expandInner, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                            <textarea
+                              value={notesDraft}
+                              onChange={e => setNotesDraft(e.target.value)}
+                              placeholder="Add notes about this lead..."
+                              rows={2}
+                              style={{ ...st.mInput, flex: 1, resize: "vertical", minHeight: 48 }}
+                            />
+                            <button
+                              onClick={() => saveNotes(lead.id)}
+                              style={{ fontSize: 12, fontWeight: 600, padding: "8px 18px", borderRadius: 8, border: "none", background: "#0B1D35", color: "white", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap" }}
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 20 }}>
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage(p => p - 1)}
+                style={{ ...st.filterToggleBtn, borderColor: "rgba(11,29,53,0.15)", color: page <= 1 ? "#ccc" : "#0B1D35", cursor: page <= 1 ? "default" : "pointer" }}
+              >
+                Prev
+              </button>
+              <span style={{ alignSelf: "center", fontSize: 13, color: "var(--text-light)" }}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+                style={{ ...st.filterToggleBtn, borderColor: "rgba(11,29,53,0.15)", color: page >= totalPages ? "#ccc" : "#0B1D35", cursor: page >= totalPages ? "default" : "pointer" }}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════ *
+ *  SCRAPER CONFIG TAB
+ * ═══════════════════════════════════════════════════════════════════ */
+function ScraperConfigTab() {
+  const [config, setConfig] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState("");
+  const [newInputs, setNewInputs] = useState({ subreddits: "", need_keywords: "", volunteer_keywords: "" });
+  const [runOutput, setRunOutput] = useState(null);
+  const [running, setRunning] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api.get("/api/admin/scraper/config")
+      .then(r => {
+        const rows = r.data?.data || [];
+        const cfg = {};
+        rows.forEach(row => { cfg[row.key] = row.value; });
+        setConfig(cfg);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const saveKey = async (key) => {
+    setSaving(key);
+    try {
+      await api.put("/api/admin/scraper/config", { key, value: config[key] });
+    } catch { /* silent */ }
+    setSaving("");
+  };
+
+  const addChip = (key) => {
+    const val = newInputs[key]?.trim();
+    if (!val) return;
+    const current = config[key] || [];
+    if (current.includes(val)) return;
+    setConfig(prev => ({ ...prev, [key]: [...current, val] }));
+    setNewInputs(prev => ({ ...prev, [key]: "" }));
+  };
+
+  const removeChip = (key, idx) => {
+    setConfig(prev => ({
+      ...prev,
+      [key]: prev[key].filter((_, i) => i !== idx),
+    }));
+  };
+
+  const handleKeyDown = (e, key) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addChip(key);
+    }
+  };
+
+  const runScraper = async () => {
+    setRunning(true);
+    setRunOutput(null);
+    try {
+      const r = await api.post("/api/admin/scraper/run");
+      setRunOutput(r.data?.data?.output || "No output");
+    } catch (e) {
+      setRunOutput("Error: " + (e.response?.data?.error || e.message));
+    }
+    setRunning(false);
+  };
+
+  const chipStyle = (key) => ({
+    display: "inline-flex", alignItems: "center", gap: 6,
+    padding: "5px 12px", borderRadius: 100,
+    fontSize: 13, fontWeight: 500,
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    background: key === "subreddits" ? "rgba(232,160,32,0.12)" : key === "need_keywords" ? "rgba(217,107,74,0.12)" : "rgba(74,124,111,0.12)",
+    color: key === "subreddits" ? "#C8851A" : key === "need_keywords" ? "#D96B4A" : "#4A7C6F",
+  });
+
+  const removeBtn = {
+    background: "none", border: "none", cursor: "pointer",
+    fontSize: 14, lineHeight: 1, padding: 0, color: "inherit", opacity: 0.6,
+  };
+
+  const sections = [
+    { key: "subreddits", label: "Subreddits", placeholder: "e.g. Atlanta" },
+    { key: "need_keywords", label: "Need Keywords", placeholder: "e.g. rent help" },
+    { key: "volunteer_keywords", label: "Volunteer Keywords", placeholder: "e.g. community service" },
+  ];
+
+  if (loading) return <Skeleton rows={4} />;
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div style={st.tabHeader}>
+          <h2 style={st.tabTitle}>Scraper Config</h2>
+        </div>
+        <button
+          onClick={runScraper}
+          disabled={running}
+          style={{
+            padding: "10px 24px", borderRadius: 10,
+            fontSize: 14, fontWeight: 700,
+            border: "none",
+            background: running ? "rgba(11,29,53,0.08)" : "#0B1D35",
+            color: running ? "#6B7280" : "white",
+            cursor: running ? "not-allowed" : "pointer",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            display: "flex", alignItems: "center", gap: 8,
+          }}
+        >
+          {running ? "Running..." : "Run Scraper Now"}
+        </button>
+      </div>
+
+      {/* Run output terminal */}
+      {(runOutput || running) && (
+        <div style={{
+          background: "#0B1D35", color: "#E8A020",
+          borderRadius: 12, padding: "16px 20px",
+          marginBottom: 28, fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: 12, lineHeight: 1.7,
+          maxHeight: 320, overflowY: "auto",
+          whiteSpace: "pre-wrap", wordBreak: "break-word",
+        }}>
+          {running && !runOutput ? "Starting scraper...\n" : ""}
+          {runOutput || ""}
+        </div>
+      )}
+
+      {/* Config sections */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+        {sections.map(({ key, label, placeholder }) => (
+          <div key={key} style={{
+            background: "white", borderRadius: 14, padding: "20px 24px",
+            border: "1px solid rgba(11,29,53,0.06)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0B1D35", margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {label}
+              </h3>
+              <button
+                onClick={() => saveKey(key)}
+                disabled={saving === key}
+                style={{
+                  fontSize: 12, fontWeight: 600,
+                  padding: "6px 16px", borderRadius: 8,
+                  border: "1.5px solid var(--sage)", background: "transparent",
+                  color: "var(--sage)", cursor: saving === key ? "not-allowed" : "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}
+              >
+                {saving === key ? "Saving..." : "Save"}
+              </button>
+            </div>
+
+            {/* Chips */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+              {(config[key] || []).map((val, idx) => (
+                <span key={idx} style={chipStyle(key)}>
+                  {key === "subreddits" ? `r/${val}` : val}
+                  <button onClick={() => removeChip(key, idx)} style={removeBtn}>&times;</button>
+                </span>
+              ))}
+            </div>
+
+            {/* Add input */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={newInputs[key] || ""}
+                onChange={e => setNewInputs(prev => ({ ...prev, [key]: e.target.value }))}
+                onKeyDown={e => handleKeyDown(e, key)}
+                placeholder={placeholder}
+                style={{ ...st.mInput, flex: 1 }}
+              />
+              <button
+                onClick={() => addChip(key)}
+                style={{
+                  fontSize: 13, fontWeight: 600,
+                  padding: "8px 18px", borderRadius: 8,
+                  border: "none", background: "#0B1D35", color: "white",
+                  cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
