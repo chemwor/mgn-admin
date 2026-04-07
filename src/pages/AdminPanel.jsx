@@ -2693,6 +2693,22 @@ function ScraperLeadsTab() {
     color: type === "need" ? "#D96B4A" : "#4A7C6F",
   });
 
+  const CAT_COLORS = {
+    housing: "#8B5CF6", food: "#D96B4A", employment: "#C8851A",
+    utilities: "#3B82F6", healthcare: "#EC4899", childcare: "#F59E0B",
+    transportation: "#6366F1", legal: "#0EA5E9", education: "#4A7C6F",
+    mentoring: "#4A7C6F", community: "#22C55E", general: "#6B7280",
+  };
+
+  const catBadge = (cat) => ({
+    fontSize: 10, fontWeight: 700, letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    padding: "3px 8px", borderRadius: 100,
+    display: "inline-block",
+    background: `${CAT_COLORS[cat] || CAT_COLORS.general}18`,
+    color: CAT_COLORS[cat] || CAT_COLORS.general,
+  });
+
   const statusBadgeStyle = (s) => ({
     fontSize: 11, fontWeight: 700, letterSpacing: "0.04em",
     textTransform: "uppercase",
@@ -2739,10 +2755,10 @@ function ScraperLeadsTab() {
               <thead>
                 <tr>
                   <th style={st.th}>Type</th>
+                  <th style={st.th}>Category</th>
                   <th style={st.th}>Subreddit</th>
                   <th style={st.th}>Title</th>
-                  <th style={st.th}>Author</th>
-                  <th style={st.th}>Flagged</th>
+                  <th style={st.th}>Posted</th>
                   <th style={st.th}>Status</th>
                   <th style={st.th}>Actions</th>
                 </tr>
@@ -2752,14 +2768,14 @@ function ScraperLeadsTab() {
                   <Fragment key={lead.id}>
                     <tr style={st.tr}>
                       <td style={st.td}><span style={typeBadge(lead.lead_type)}>{lead.lead_type}</span></td>
+                      <td style={st.td}><span style={catBadge(lead.category)}>{lead.category || "—"}</span></td>
                       <td style={{ ...st.td, fontSize: 13 }}>r/{lead.subreddit}</td>
                       <td style={{ ...st.td, maxWidth: 300 }}>
                         <a href={lead.url} target="_blank" rel="noopener noreferrer" style={{ color: "#0B1D35", fontWeight: 600, textDecoration: "none" }}>
                           {lead.title?.length > 70 ? lead.title.slice(0, 70) + "..." : lead.title}
                         </a>
                       </td>
-                      <td style={{ ...st.td, fontSize: 13 }}>u/{lead.author}</td>
-                      <td style={{ ...st.td, fontSize: 12 }}>{fmtDate(lead.flagged_at)}</td>
+                      <td style={{ ...st.td, fontSize: 12 }}>{lead.created_utc ? fmtDate(lead.created_utc) : "—"}</td>
                       <td style={st.td}><span style={statusBadgeStyle(lead.status)}>{lead.status}</span></td>
                       <td style={st.td}>
                         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
